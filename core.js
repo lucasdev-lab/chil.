@@ -4,7 +4,7 @@
   var A = { V: {}, st: {
     tab: 'money', sim: 0, month: 'all',
     sumMode: 'day', sumDay: U.todayISO(), sumMonth: U.monthKey(U.todayISO()), sumYear: String(new Date().getFullYear()),
-    debtView: 'owed', calcMode: 'calc'
+    debtView: 'owed', bizMonth: 'all', cmpOpen: false
   } };
   C.A = A;
 
@@ -13,6 +13,7 @@
     money: ic('<rect x="3" y="5" width="18" height="14" rx="2"/><path d="M3 10h18M7 15h4"/>'),
     sum: ic('<path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/>'),
     plus: ic('<path d="M12 5v14M5 12h14"/>'),
+    biz: ic('<path d="M3 17l5-5 4 4 8-9"/><path d="M15 7h5v5"/>'),
     calc: ic('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/>'),
     debt: ic('<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>'),
     search: ic('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
@@ -46,7 +47,7 @@
       var ru = rules[A.ruleKey(r)];
       if (!ru) return;
       var changed = false;
-      if (!r.bucket && ru.bucket) { r.bucket = ru.bucket; changed = true; }
+      if (ru.bucket && (r.auto || !r.bucket)) { r.bucket = ru.bucket; delete r.auto; changed = true; }
       if (!r.tag && ru.tag) { r.tag = ru.tag; changed = true; }
       if (changed) n++;
     });
@@ -127,20 +128,27 @@
     return Object.keys(obj).map(function (k) { return [k, obj[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
   };
 
-  /* ---------- workings ---------- */
-  A.rowValue = function (w) {
-    var v = C.Calc.evalExpr(w.expr);
-    return v == null ? null : v;
-  };
-  A.workNet = function () {
-    var t = 0, used = 0;
-    S.D.work.rows.forEach(function (w) {
-      if (!w.counts) return;
-      var v = A.rowValue(w);
-      if (v == null) return;
-      t += (w.sign === '-' ? -1 : 1) * v; used++;
+  /* ---------- comparison (days of a month, months of a year, or all years) ---------- */
+  A.compare = function (mode) {
+    var st = A.st, groups = {}, title, mk = U.monthKey(st.sumDay), yr = st.sumMonth.slice(0, 4);
+    S.D.tx.forEach(function (r) {
+      var k;
+      if (mode === 'day') { if (U.monthKey(r.date) !== mk) return; k = r.date; }
+      else if (mode === 'month') { if (r.date.slice(0, 4) !== yr) return; k = U.monthKey(r.date); }
+      else k = r.date.slice(0, 4);
+      (groups[k] = groups[k] || []).push(r);
     });
-    return { net: U.round2(t), used: used };
+    title = mode === 'day' ? 'Days of ' + U.monthLabel(mk) : mode === 'month' ? 'Months of ' + yr : 'All years';
+    var rows = Object.keys(groups).sort().map(function (k) {
+      var sm = A.summarize(groups[k]);
+      var label = mode === 'day' ? U.fmtDayLong(k) : mode === 'month' ? U.monthLabel(k) : k;
+      var short = mode === 'day' ? U.DAYS[U.parseISO(k).getDay()].slice(0, 3) + ' ' + U.fmtDay(k) : mode === 'month' ? U.MON[+k.slice(5) - 1] + ' ' + k.slice(2, 4) : k;
+      return { key: k, label: label, short: short, bIn: sm.inBiz, bOut: sm.outBiz, pIn: sm.inPer, pOut: sm.outPer, made: sm.left, inn: sm.inn, out: U.round2(sm.spent + sm.saved) };
+    });
+    var t = { bIn: 0, bOut: 0, pIn: 0, pOut: 0, made: 0, inn: 0, out: 0 };
+    rows.forEach(function (r) { Object.keys(t).forEach(function (k) { t[k] += r[k]; }); });
+    Object.keys(t).forEach(function (k) { t[k] = U.round2(t[k]); });
+    return { title: title, rows: rows, total: t, unit: mode === 'day' ? 'Day' : mode === 'month' ? 'Month' : 'Year' };
   };
 
   // Gentle backup nudge: only when there is data worth saving, 7+ days since the last backup, and not snoozed.
@@ -181,7 +189,7 @@
   };
 
   /* ---------- rendering ---------- */
-  var TABS = [['money', 'Money', 'money'], ['sum', 'Summary', 'sum'], ['add', 'Add', 'plus'], ['calc', 'Calc', 'calc'], ['debts', 'Debts', 'debt']];
+  var TABS = [['money', 'Money', 'money'], ['sum', 'Summary', 'sum'], ['add', 'Add', 'plus'], ['biz', 'Business', 'biz'], ['calc', 'Calc', 'calc'], ['debts', 'Debts', 'debt']];
 
   A.shell = function () {
     var s = S.D.settings;

@@ -37,15 +37,20 @@
       S.init();
       splash(false);
       var t0 = Date.now();
-      var ok = await Act.check();
+      await Act.load();
+      var sub = Act.state();
       var left = 1500 - (Date.now() - t0);
       if (left > 0) await wait(left);
-      if (!ok) { A.activationScreen(afterActivation); return; }
+      if (sub.kind === 'none') { A.activationScreen(afterActivation); return; }
+      if (sub.kind === 'blocked' || sub.kind === 'clock' || sub.kind === 'expired') { A.subLock(sub); return; }
       afterActivation();
     } catch (e) { fatal(e); }
   }
 
+  // If the end date passes while the app is open, lock it.
+  function subWatch() { var k = Act.state().kind; if (k === 'expired' || k === 'blocked' || k === 'clock') location.reload(); }
   document.addEventListener('visibilitychange', function () {
+    if (!document.hidden) subWatch();
     var s = S.D.settings;
     if (!s || !s.pin) return;
     if (document.hidden) { hiddenAt = Date.now(); return; }
@@ -56,6 +61,7 @@
   });
 
   // Keep the "closing time" banner fresh while the app is open.
+  setInterval(subWatch, 60000);
   setInterval(function () { if (A.st.tab === 'money' && !document.hidden && !U.$('#sheet.open')) { var m = U.$('#main'); if (m && !U.$('#screen-host .screen')) A.refresh(); } }, 60000);
 
   if ('serviceWorker' in navigator && /^https?:$/.test(location.protocol)) {

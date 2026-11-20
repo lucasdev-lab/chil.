@@ -1,7 +1,7 @@
 /* Chil storage: everything lives on this phone, in localStorage. */
 (function () {
   var C = window.Chil;
-  var KEYS = { settings: 'chil.settings', tx: 'chil.tx', rules: 'chil.rules', work: 'chil.work', debts: 'chil.debts' };
+  var KEYS = { settings: 'chil.settings', tx: 'chil.tx', rules: 'chil.rules', biz: 'chil.biz', debts: 'chil.debts' };
   var DEFAULT_SETTINGS = {
     shopName: '', openAt: '', closeAt: '', days: [1, 2, 3, 4, 5, 6],
     openMsg: "Let's get to work. Make the day fruitful.",
@@ -10,9 +10,9 @@
     recipients: [], selRecipient: null,
     reportOpts: { split: true, cat: true, work: true, debts: true },
     setupDone: false, lastBackup: null, customTags: [],
-    closedDate: null, greetedDate: null, lastImportAt: null, installedAt: null, backupSnoozeUntil: null
+    closedDate: null, greetedDate: null, lastImportAt: null, installedAt: null, backupSnoozeUntil: null, v2: false
   };
-  var D = { settings: null, tx: [], rules: {}, work: { rows: [] }, debts: [] };
+  var D = { settings: null, tx: [], rules: {}, biz: { capital: null, rows: [] }, debts: [] };
   var warned = false;
 
   function read(k, def) {
@@ -37,15 +37,35 @@
     return out;
   }
 
+  function cleanBiz(b) {
+    var out = { capital: null, rows: [] };
+    if (b && typeof b === 'object') {
+      if (typeof b.capital === 'number' && isFinite(b.capital) && b.capital > 0) out.capital = b.capital;
+      if (Array.isArray(b.rows)) out.rows = b.rows.filter(function (r) { return r && typeof r === 'object' && r.id && r.date; });
+    }
+    return out;
+  }
+  // 1.0.1: money received is Business and money sent is Personal unless the owner changes it. Applies once to older records.
+  function migrate() {
+    if (D.settings.v2) return;
+    D.tx.forEach(function (r) {
+      if (r.dir === 'in' && !r.bucket) { r.bucket = 'business'; r.auto = true; }
+      else if (r.dir === 'out' && !r.bucket && r.tag !== 'Savings') { r.bucket = 'personal'; r.auto = true; }
+    });
+    D.settings.v2 = true;
+    write('tx', D.tx); write('settings', D.settings);
+  }
+
   var Store = {
     D: D,
     init: function () {
       D.settings = mergeSettings(read('settings', {}));
       D.tx = read('tx', []);
       D.rules = read('rules', {});
-      D.work = read('work', { rows: [] });
-      if (!D.work || !Array.isArray(D.work.rows)) D.work = { rows: [] };
+      D.biz = cleanBiz(read('biz', null));
+      try { localStorage.removeItem('chil.work'); } catch (e) { /* the old Workings page was removed in 1.0.1 */ }
       D.debts = read('debts', []);
+      migrate();
       try { if (navigator.storage && navigator.storage.persist) navigator.storage.persist(); } catch (e) { /* optional */ }
     },
     commit: function () {
@@ -57,7 +77,7 @@
     exportAll: function () {
       return {
         app: 'chil', version: 1, exportedAt: new Date().toISOString(),
-        settings: D.settings, tx: D.tx, rules: D.rules, work: D.work, debts: D.debts
+        settings: D.settings, tx: D.tx, rules: D.rules, biz: D.biz, debts: D.debts
       };
     },
     // Returns {ok, message, counts}. mode: 'replace' only (simple and predictable).
@@ -68,8 +88,9 @@
       D.settings = mergeSettings(obj.settings || {});
       D.tx = obj.tx;
       D.rules = obj.rules || {};
-      D.work = obj.work && Array.isArray(obj.work.rows) ? obj.work : { rows: [] };
+      D.biz = cleanBiz(obj.biz);
       D.debts = obj.debts;
+      migrate();
       Store.commit();
       return { ok: true, counts: { tx: D.tx.length, debts: D.debts.length } };
     },

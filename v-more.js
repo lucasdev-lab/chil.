@@ -57,29 +57,108 @@
     draw();
   };
 
-  /* ---------- activation ---------- */
+  /* ---------- activation and subscription ---------- */
+  function sellerWA(msg) {
+    var n = window.CHIL_CONFIG.SELLER_WHATSAPP;
+    return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(msg) : '';
+  }
+  function reasonText(r) {
+    if (r.reason === 'ended') return 'That code already ended on ' + U.fmtDayYear(r.end) + '. Ask the seller for a new one.';
+    return 'That code is not valid for this phone. Check it was copied fully, or ask the seller.';
+  }
+  function planName(t) { return t === 'trial' ? 'Free trial' : t === 'lifetime' ? 'Never expires' : t === 'free' ? 'Preview' : 'Subscription'; }
+
+  // Paste-a-code box used on the activation screen, the lock screen, and Settings.
+  function codeBox(onOk) {
+    return '<label class="f">Activation code</label><textarea class="in" id="act-code" style="min-height:84px;text-transform:uppercase" placeholder="Paste your code here" autocomplete="off" autocapitalize="characters"></textarea>' +
+      '<div class="err" id="act-err"></div><button class="btn block" id="act-go">Activate</button>';
+  }
+  function bindCode(root, onOk) {
+    U.$('#act-go', root).onclick = function () {
+      var code = U.$('#act-code', root).value.trim(), err = U.$('#act-err', root);
+      if (!code) { err.textContent = 'Paste the activation code first.'; return; }
+      err.textContent = 'Checking...';
+      Act.activate(code).then(function (r) { if (r.ok) onOk(r); else err.textContent = reasonText(r); });
+    };
+  }
+  function idBlock() {
+    var id = Act.shownId();
+    return '<div class="idbox" id="act-id">' + id + '</div><div class="row" style="margin-top:10px"><button class="btn ghost grow" id="act-copy">Copy ID</button></div>';
+  }
+  function bindCopy(root) {
+    var id = Act.shownId();
+    U.$('#act-copy', root).onclick = function () { try { navigator.clipboard.writeText(id); U.toast('Copied'); } catch (e) { U.toast('Press and hold the ID to copy'); } };
+  }
+
   A.activationScreen = function (done) {
     var cfg = window.CHIL_CONFIG, id = Act.shownId();
-    var msg = 'Hello, I want to activate Chil. My Device ID is ' + id;
-    var wa = cfg.SELLER_WHATSAPP ? 'https://wa.me/' + cfg.SELLER_WHATSAPP + '?text=' + encodeURIComponent(msg) : '';
+    var wa = sellerWA('Hello, I want to use Chil. My Device ID is ' + id);
     A.screen('', '<div class="pad"><div class="center" style="margin:6px 0 14px">' + C.Logo.lockup(46, 30) + '<p class="mute" style="margin-top:6px">Your money, sorted.</p></div>' +
       '<h2>Activate Chil</h2><p class="mute">Send this Device ID to the seller. You will get an activation code that works only on this phone.</p>' +
-      '<div class="gap"></div><div class="idbox" id="act-id">' + id + '</div>' +
-      '<div class="row" style="margin-top:10px"><button class="btn ghost grow" id="act-copy">Copy ID</button>' + (wa ? '<a class="btn green grow" href="' + wa + '" target="_blank" rel="noopener">Send on WhatsApp</a>' : '') + '</div>' +
-      (cfg.PAY_INSTRUCTIONS ? '<p class="hint">' + U.esc(cfg.PAY_INSTRUCTIONS) + '</p>' : '') +
-      '<label class="f">Activation code</label><textarea class="in" id="act-code" style="min-height:84px;text-transform:uppercase" placeholder="Paste your code here" autocomplete="off" autocapitalize="characters"></textarea>' +
-      '<div class="err" id="act-err">' + (Act.supported() ? '' : 'This browser cannot check activation codes. Open the link in Chrome or Safari.') + '</div><button class="btn block" id="act-go">Activate</button>' +
-      '<p class="hint center" style="margin-top:14px">Needs to be done only once. Works offline afterwards.</p></div>', function (root) {
-        U.$('#act-copy', root).onclick = function () { try { navigator.clipboard.writeText(id); U.toast('Copied'); } catch (e) { U.toast('Press and hold the ID to copy'); } };
-        U.$('#act-go', root).onclick = function () {
-          var code = U.$('#act-code', root).value.trim(), err = U.$('#act-err', root);
-          if (!code) { err.textContent = 'Paste the activation code first.'; return; }
-          err.textContent = 'Checking...';
-          Act.activate(code).then(function (ok) {
-            if (ok) { A.clearScreen(); done(); } else err.textContent = 'That code is not valid for this phone. Check it was copied fully, or ask the seller.';
-          });
-        };
+      '<div class="gap"></div>' + idBlock() + (wa ? '<a class="btn green block" style="margin-top:8px" href="' + wa + '" target="_blank" rel="noopener">Send on WhatsApp</a>' : '') +
+      (cfg.PAY_INSTRUCTIONS ? '<p class="hint" style="white-space:pre-line">' + U.esc(cfg.PAY_INSTRUCTIONS) + '</p>' : '') +
+      codeBox() + (Act.supported() ? '' : '<div class="err">This browser cannot check activation codes. Open the link in Chrome or Safari.</div>') +
+      '<p class="hint center" style="margin-top:14px">Needs to be done only once per plan. Works offline afterwards.</p></div>', function (root) {
+        bindCopy(root);
+        bindCode(root, function () { A.clearScreen(); done(); });
       });
+  };
+
+  // Shown when the subscription has ended, the copy was switched off, or the phone date looks wrong.
+  A.subLock = function (state) {
+    var cfg = window.CHIL_CONFIG, id = Act.shownId();
+    var title, text;
+    if (state.kind === 'blocked') { title = 'This copy has been switched off'; text = 'Please contact the seller.'; }
+    else if (state.kind === 'clock') { title = 'Check your phone date'; text = 'Your phone\'s date is earlier than before. Set the correct date and time in your phone settings, then tap "Check again". Or ask the seller for a new code.'; }
+    else { title = state.type === 'trial' ? 'Your free trial has ended' : 'Your subscription has ended'; text = 'It ended on ' + U.fmtDayYear(state.end) + '. Your records are safe. Pay the seller, send your Device ID, and paste the new code below.'; }
+    var wa = sellerWA('Hello, my Chil ' + (state.type === 'trial' ? 'trial' : 'subscription') + ' has ended. I want to renew. My Device ID is ' + id);
+    A.screen('', '<div class="pad"><div class="center" style="margin:6px 0 10px">' + C.Logo.icon(56) + '</div><h2>' + U.esc(title) + '</h2><p class="mute">' + U.esc(text) + '</p>' +
+      '<div class="gap"></div>' + idBlock() + (wa ? '<a class="btn green block" style="margin-top:8px" href="' + wa + '" target="_blank" rel="noopener">Renew on WhatsApp</a>' : '') +
+      (cfg.PAY_INSTRUCTIONS ? '<p class="hint" style="white-space:pre-line">' + U.esc(cfg.PAY_INSTRUCTIONS) + '</p>' : '') +
+      (state.kind === 'blocked' ? '' : codeBox()) +
+      (state.kind === 'clock' ? '<button class="btn ghost block" id="clk-again" style="margin-top:10px">Check again</button>' : '') +
+      '<button class="btn ghost block" id="lk-backup" style="margin-top:10px">Save a backup of my records</button></div>', function (root) {
+        bindCopy(root);
+        if (state.kind !== 'blocked') bindCode(root, function () { location.reload(); });
+        var ag = U.$('#clk-again', root); if (ag) ag.onclick = function () { location.reload(); };
+        U.$('#lk-backup', root).onclick = function () { A.doBackup(); };
+      });
+  };
+
+  // One line for the top of the Money tab when the end date is near.
+  A.subBanner = function () {
+    var s = Act.state();
+    if (s.kind !== 'warn' && s.kind !== 'grace') return '';
+    var what = s.type === 'trial' ? 'Free trial' : 'Subscription';
+    var when = s.kind === 'grace' ? 'ended on ' + U.fmtDayYear(s.end) + '. Last day to renew!' : s.left === 0 ? 'ends today.' : s.left === 1 ? 'ends tomorrow.' : 'ends in ' + s.left + ' days (' + U.fmtDayYear(s.end) + ').';
+    return '<div class="banner ' + (s.kind === 'grace' || s.left <= 1 ? 'red' : '') + '">' + what + ' ' + when + ' <button data-act="renew">Renew</button></div>';
+  };
+
+  // Renew or enter a new code (opened from the banner and from Settings).
+  A.codeSheet = function () {
+    var cfg = window.CHIL_CONFIG, id = Act.shownId(), s = Act.state();
+    var wa = sellerWA('Hello, I want to renew Chil. My Device ID is ' + id);
+    A.sheet('<h2>Renew or enter a new code</h2><p class="mute">Pay the seller and send your Device ID. Then paste the new code here.</p><div class="gap"></div>' + idBlock() +
+      (wa ? '<a class="btn green block" style="margin-top:8px" href="' + wa + '" target="_blank" rel="noopener">Ask the seller on WhatsApp</a>' : '') +
+      (cfg.PAY_INSTRUCTIONS ? '<p class="hint" style="white-space:pre-line">' + U.esc(cfg.PAY_INSTRUCTIONS) + '</p>' : '') + codeBox(), function (b) {
+        bindCopy(b);
+        bindCode(b, function (r) {
+          A.closeSheet(); U.toast(r.type === 'lifetime' ? 'Activated. Never expires.' : 'Done. Valid until ' + U.fmtDayYear(r.end), 3600);
+          A.go(A.st.tab === 'more' ? 'more' : A.st.tab);
+        });
+      });
+  };
+
+  A.subCardHTML = function () {
+    var s = Act.state(), line, sub = '';
+    if (s.type === 'lifetime') line = 'Never expires';
+    else if (s.type === 'free') line = 'Preview copy';
+    else {
+      line = (s.type === 'trial' ? 'Free trial' : 'Subscription') + ' until ' + U.fmtDayYear(s.end);
+      sub = s.kind === 'grace' ? 'Ended. Renew today to keep using Chil.' : s.left === 0 ? 'Ends today.' : s.left === 1 ? '1 day left.' : s.left + ' days left.';
+    }
+    return '<div class="card"><h3>Subscription</h3><div class="list-item"><div class="grow"><b>' + U.esc(line) + '</b>' + (sub ? '<small>' + U.esc(sub) + '</small>' : '') + '</div>' +
+      (s.type === 'free' ? '' : '<button class="btn small ghost" id="s-code">' + (s.type === 'lifetime' ? 'Enter code' : 'Renew') + '</button>') + '</div></div>';
   };
 
   /* ---------- first-time setup ---------- */
@@ -182,8 +261,14 @@
       cs.forEach(function (r) { L.push(r[0] + ': ' + U.money(r[1])); });
     }
     if (o.work) {
-      var n = A.workNet();
-      if (n.used) { L.push(''); L.push('*Workings net*'); L.push('KSh ' + U.money(n.net) + ' from ' + n.used + (n.used === 1 ? ' row' : ' rows')); }
+      var bz = S.D.biz.rows.filter(function (r) { return U.monthKey(r.date) === mk; }), bt = 0, bs = 0, bk = 0, bn = 0;
+      bz.forEach(function (r) {
+        var sa = C.Calc.evalExpr(r.sales), sk = C.Calc.evalExpr(r.stock);
+        if (sa == null && sk == null) return;
+        bs += sa || 0; bk += sk || 0; bn++;
+      });
+      bt = U.round2(bs - bk);
+      if (bn) { L.push(''); L.push('*Business evaluation*'); L.push('Sales: KSh ' + U.money(bs) + ', Stock: KSh ' + U.money(bk)); L.push((bt < 0 ? 'Loss' : 'Profit') + ': KSh ' + U.money(Math.abs(bt)) + ' from ' + bn + (bn === 1 ? ' row' : ' rows')); }
     }
     if (o.debts) {
       var a = A.debtTotals('owed'), b = A.debtTotals('owe');
@@ -209,7 +294,7 @@
         '<label class="f">Month</label><select class="sel" id="r-month">' + ms.map(function (k) { return '<option value="' + k + '"' + (k === mk ? ' selected' : '') + '>' + U.monthLabel(k) + '</option>'; }).join('') + '</select>' +
         '<label class="f">Send to</label><select class="sel" id="r-to"><option value="">Choose when sending</option>' + s.recipients.map(function (r) { return '<option value="' + r.id + '"' + (rec && rec.id === r.id ? ' selected' : '') + '>' + U.esc(recipLabel(r)) + '</option>'; }).join('') + '<option value="__new">+ Add new person</option></select>' +
         '<label class="f">Include</label>' +
-        [['split', 'Business and personal'], ['cat', 'Where money went'], ['work', 'Workings net'], ['debts', 'Debts and credits']].map(function (p) {
+        [['split', 'Business and personal'], ['cat', 'Where money went'], ['work', 'Business evaluation'], ['debts', 'Debts and credits']].map(function (p) {
           return '<label class="check-row"><input type="checkbox" data-o="' + p[0] + '"' + (o[p[0]] ? ' checked' : '') + '> ' + p[1] + '</label>';
         }).join('') +
         '<label class="f">Preview</label><pre class="report">' + U.esc(text) + '</pre><div class="gap"></div>' +
@@ -290,6 +375,7 @@
     h += '<div class="card"><h3>Tag rules</h3><div class="list-item"><div class="grow"><b>' + nr + ' saved</b><small>People you always tag the same way</small></div><button class="btn small ghost" id="s-rules"' + (nr ? '' : ' disabled') + '>Manage</button></div></div>';
     h += '<div class="card"><h3>Backup</h3><p class="hint" style="margin:0 0 10px">All your data stays on this phone. Save a backup file now and then, especially before clearing browser data or changing phones.' + (s.lastBackup ? ' Last backup: ' + U.fmtDayYear(s.lastBackup) + '.' : ' You have not made a backup yet.') + '</p>' +
       '<div class="row"><button class="btn grow" id="s-bk">Save backup</button><button class="btn ghost grow" id="s-rs">Restore</button></div><input type="file" id="s-file" accept=".json,application/json" class="hide"></div>';
+    h += A.subCardHTML();
     h += '<div class="card"><h3>About</h3><div class="list-item"><span>Version</span><b>' + window.CHIL_CONFIG.VERSION + '</b></div><div class="list-item"><span>Device ID</span><b class="num">' + Act.shownId() + '</b></div>' +
       '<p class="hint">Chil works offline. Nothing is sent anywhere unless you press WhatsApp, Email or Share.</p><button class="btn ghost block" id="s-wipe" style="color:var(--red);margin-top:6px">Erase all data on this phone</button></div>';
     return h;
@@ -336,6 +422,7 @@
     });
     U.$('#s-addr', root).onclick = function () { addRecipient(function () { A.closeSheet(); A.refresh(); }); };
     U.$('#s-rep', root).onclick = function () { A.V.more.reportSheet(); };
+    var sc = U.$('#s-code', root); if (sc) sc.onclick = function () { A.codeSheet(); };
     U.$('#s-pin', root).onclick = function () { pinSheet(); };
     var po = U.$('#s-pinoff', root);
     if (po) po.onclick = function () {
@@ -371,7 +458,7 @@
       rd.readAsText(f); fi.value = '';
     };
     U.$('#s-wipe', root).onclick = function () {
-      A.confirm('Erase everything?', 'All records, debts, workings and settings on this phone will be deleted. Save a backup first if you want to keep them. Your activation stays.', 'Erase all', function () {
+      A.confirm('Erase everything?', 'All records, debts, business rows and settings on this phone will be deleted. Save a backup first if you want to keep them. Your activation stays.', 'Erase all', function () {
         S.wipe(); location.reload();
       }, true);
     };

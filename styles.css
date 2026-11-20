@@ -213,3 +213,17 @@ pre.report{white-space:pre-wrap;word-break:break-word;background:#fff;border:1px
 .tagbtn{display:flex;align-items:center;justify-content:space-between;text-align:left;font-weight:600;cursor:pointer}
 .tagbtn.empty-tag{color:#9aa39d;font-weight:400}
 .tagbtn span{color:var(--mute);margin-left:6px}
+
+.bzin{width:100%;min-width:0;height:40px;border:1.5px solid var(--line);border-radius:10px;padding:0 8px;background:#fff;outline:none;font:inherit}
+.bzin:focus{border-color:var(--o);box-shadow:0 0 0 3px var(--o-l)}
+.bzin.r{text-align:right}
+.bzin.bad{border-color:var(--red);background:var(--red-l)}
+table.bz{table-layout:fixed;min-width:0}
+table.bz th:nth-child(1){width:31%} table.bz th:nth-child(2),table.bz th:nth-child(3){width:23%} table.bz th:nth-child(4){width:19%} table.bz th:nth-child(5){width:12%}
+table.bz td{padding:6px 5px;white-space:normal}
+table.bz tr.day td{padding:8px 8px;white-space:normal}
+table.bz td .del{padding:6px;font-size:15px}
+table.cmp td{white-space:nowrap;font-size:13px;vertical-align:top}
+.nav button{font-size:10.5px}
+table.cmp th,table.cmp td{padding:8px 6px}
+table.cmp td:first-child{font-weight:600}

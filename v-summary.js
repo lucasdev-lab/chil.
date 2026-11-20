@@ -38,6 +38,43 @@
     return h;
   };
 
+
+  function cmpCell(i, o) { return '<span class="pos">In ' + U.money(i) + '</span><br><span class="neg">Out ' + U.money(o) + '</span>'; }
+  function madeCell(n) { return '<b class="' + (n < 0 ? 'neg' : n > 0 ? 'pos' : '') + '">' + (n < 0 ? '−' : n > 0 ? '+' : '') + U.money(Math.abs(n)) + '</b>'; }
+  function cmpTable(d) {
+    var h = '<div class="tw"><table class="t cmp"><thead><tr><th>' + d.unit + '</th><th class="r">Business</th><th class="r">Personal</th><th class="r">Made / Lost</th></tr></thead><tbody>';
+    d.rows.forEach(function (r) { h += '<tr><td>' + U.esc(r.short) + '</td><td class="r num">' + cmpCell(r.bIn, r.bOut) + '</td><td class="r num">' + cmpCell(r.pIn, r.pOut) + '</td><td class="r num">' + madeCell(r.made) + '</td></tr>'; });
+    h += '</tbody><tfoot><tr><td>Total</td><td class="r num">' + cmpCell(d.total.bIn, d.total.bOut) + '</td><td class="r num">' + cmpCell(d.total.pIn, d.total.pOut) + '</td><td class="r num">' + madeCell(d.total.made) + '</td></tr></tfoot></table></div>';
+    return h;
+  }
+  function cmpChart(d) {
+    var max = 0; d.rows.forEach(function (r) { max = Math.max(max, r.inn, r.out); });
+    if (!max) return '';
+    return '<div class="bars cmpchart">' + d.rows.map(function (r) {
+      return '<div class="bar"><div class="l"><span>' + U.esc(st.sumMode === 'day' ? r.label.replace(/^[A-Za-z]+ (?=\d)/, '') : r.label) + '</span><b class="num">' + (r.made < 0 ? '−' : '') + U.money(Math.abs(r.made)) + '</b></div>' +
+        '<i class="g" style="width:' + Math.max(r.inn ? 2 : 0, Math.round(r.inn / max * 100)) + '%"></i><i style="width:' + Math.max(r.out ? 2 : 0, Math.round(r.out / max * 100)) + '%;background:var(--red);margin-top:3px"></i></div>';
+    }).join('') + '<p class="hint">Green: money in. Red: money out. The number is what you made or lost.</p></div>';
+  }
+  function cmpHTML() {
+    var d = A.compare(st.sumMode);
+    var h = '<div class="card"><div class="row" style="justify-content:space-between"><h3 style="margin:0">Compare ' + (st.sumMode === 'day' ? 'days' : st.sumMode === 'month' ? 'months' : 'years') + '</h3><button class="btn small ghost" data-act="cmp">' + (st.cmpOpen ? 'Hide ▲' : 'Show ▼') + '</button></div>';
+    if (st.cmpOpen) {
+      h += '<p class="hint" style="margin:6px 0 10px">' + U.esc(d.title) + '</p>';
+      if (!d.rows.length) h += '<p class="hint">No records to compare yet.</p>';
+      else h += cmpChart(d) + cmpTable(d) + '<p class="hint">Made / Lost is all money in minus all money out, savings and fees included.</p><button class="btn ghost block" data-act="cmpprint">Print comparison</button>';
+    }
+    return h + '</div>';
+  }
+  A.comparePrintHTML = function () {
+    var d = A.compare(st.sumMode);
+    function c(i, o) { return 'In ' + U.money2(i) + '<br>Out ' + U.money2(o); }
+    return '<h1>Chil comparison: ' + U.esc(A.shopLabel()) + '</h1><p class="sub">' + U.esc(d.title) + ' · made ' + U.fmtDayYear(U.todayISO()) + '</p>' +
+      '<table><tr><th>' + d.unit + '</th><th class="n">Business</th><th class="n">Personal</th><th class="n">Made / Lost</th></tr>' +
+      d.rows.map(function (r) { return '<tr><td>' + U.esc(r.label) + '</td><td class="n">' + c(r.bIn, r.bOut) + '</td><td class="n">' + c(r.pIn, r.pOut) + '</td><td class="n">' + U.money2(r.made) + '</td></tr>'; }).join('') +
+      '<tr><th>Total</th><th class="n">' + c(d.total.bIn, d.total.bOut) + '</th><th class="n">' + c(d.total.pIn, d.total.pOut) + '</th><th class="n">' + U.money2(d.total.made) + '</th></tr></table>' +
+      '<p class="sub">Made / Lost = all money in minus all money out, including savings and fees.</p>';
+  };
+
   A.V.sum = {
     html: function () {
       var list = A.periodList(), sm = A.summarize(list);
@@ -61,6 +98,7 @@
         h += '<div class="card"><h3>Where the money went</h3>' + bars(sm.cats, '', 10) + '</div>';
         h += '<div class="card"><h3>Where the money came from</h3>' + bars(sm.from, 'g', 8) + '</div>';
       }
+      h += cmpHTML();
       h += '<div class="card"><h3>Save this summary</h3><div class="row"><button class="btn ghost grow" data-act="pdf">PDF</button><button class="btn ghost grow" data-act="xls">Excel</button><button class="btn ghost grow" data-act="send">Send report</button></div>' +
         '<p class="hint">PDF: choose "Save as PDF" in the print window. Excel: a file that opens in Excel or Sheets.</p></div>';
       h += '<div class="card" style="text-align:center"><h3>End of day</h3><p class="hint" style="margin:0 0 10px">Check everything, then close the shop.</p><button class="btn green block" data-act="close">Close shop</button></div>';
@@ -76,6 +114,8 @@
         b.onclick = function () {
           var a = b.getAttribute('data-act'), list = A.periodList();
           if (a === 'tagged') { st.onlyUntagged = true; st.month = 'all'; A.go('money'); }
+          if (a === 'cmp') { st.cmpOpen = !st.cmpOpen; A.refresh(); }
+          if (a === 'cmpprint') Ex.print(A.comparePrintHTML(), 'Chil comparison');
           if (a === 'close') A.V.more.closeShop();
           if (a === 'send') A.V.more.reportSheet();
           if (a === 'pdf' || a === 'xls') {

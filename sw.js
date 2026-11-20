@@ -1,8 +1,8 @@
 /* Chil service worker: makes the app open with no internet. */
-var CACHE = 'chil-v1.0.0';
+var CACHE = 'chil-v1.0.1';
 var FILES = ['./', 'index.html', 'manifest.webmanifest', 'styles.css',
   'config.js', 'util.js', 'logo.js', 'store.js', 'parser.js', 'calc.js', 'activation.js', 'exporter.js',
-  'core.js', 'v-money.js', 'v-summary.js', 'v-calc.js', 'v-debts.js', 'v-search.js', 'v-more.js', 'app.js',
+  'core.js', 'v-money.js', 'v-summary.js', 'v-biz.js', 'v-calc.js', 'v-debts.js', 'v-search.js', 'v-more.js', 'app.js',
   'icon-192.png', 'icon-512.png', 'maskable-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {
@@ -17,6 +17,14 @@ self.addEventListener('fetch', function (e) {
   if (e.request.method !== 'GET') return;
   var url = new URL(e.request.url);
   if (url.origin !== location.origin) return;
+  // config.js holds the switch-off list, so ask the internet first and use the saved copy only when offline.
+  if (/\/js\/config\.js$|\/config\.js$/.test(url.pathname)) {
+    e.respondWith(fetch(e.request).then(function (res) {
+      if (res && res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(e.request, copy); }); }
+      return res;
+    }).catch(function () { return caches.match(e.request, { ignoreSearch: true }); }));
+    return;
+  }
   e.respondWith(caches.match(e.request, { ignoreSearch: true }).then(function (hit) {
     var net = fetch(e.request).then(function (res) {
       if (res && res.ok) { var copy = res.clone(); caches.open(CACHE).then(function (c) { c.put(e.request, copy); }); }

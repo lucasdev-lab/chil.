@@ -29,27 +29,27 @@
   // verified:false means the wording was not in the samples we tested; the app shows a "check" flag on these rows.
   var RULES = [
     { kind: 'received', verified: true,
-      re: new RegExp('^' + CODE + CONF + 'You have received Ksh' + AMT + ' from (.+?) on ' + DATE + ' at ' + TIME + '\\s*\\.?\\s*New (Pochi|M-PESA) balance is Ksh' + AMT, 'i'),
+      re: new RegExp('^' + CODE + CONF + 'You have received Ksh' + AMT + ' from (.+?) on ' + DATE + ' (?:at )?' + TIME + '\\s*\\.*\\s*New (Pochi|M-PESA) balance is Ksh' + AMT, 'i'),
       build: function (m) {
         var w = when(m[4], m[5]);
         var pochi = /pochi/i.test(m[6]);
         return { code: m[1], dir: 'in', amount: num(m[2]), fee: 0, name: cleanName(m[3]),
           account: pochi ? 'Pochi' : 'M-PESA', balance: num(m[7]),
-          bucket: pochi ? 'business' : null, tag: null, date: w.date, time: w.time, ts: w.ts };
+          bucket: 'business', auto: true, tag: null, date: w.date, time: w.time, ts: w.ts };
       } },
     { kind: 'sent', verified: true,
-      re: new RegExp('^' + CODE + CONF + 'Ksh' + AMT + ' sent to (.+?) on ' + DATE + ' at ' + TIME + '\\s*\\.?\\s*New M-PESA balance is Ksh' + AMT + '\\.?\\s*Transaction cost, Ksh' + AMT, 'i'),
+      re: new RegExp('^' + CODE + CONF + 'Ksh' + AMT + ' sent to (.+?) on ' + DATE + ' at ' + TIME + '\\s*\\.*\\s*New (Pochi|M-PESA) balance is Ksh' + AMT + '\\.?\\s*Transaction cost, Ksh' + AMT, 'i'),
       build: function (m) {
         var w = when(m[4], m[5]);
-        return { code: m[1], dir: 'out', amount: num(m[2]), fee: num(m[7]), name: cleanName(m[3]),
-          account: 'M-PESA', balance: num(m[6]), bucket: null, tag: null, date: w.date, time: w.time, ts: w.ts };
+        return { code: m[1], dir: 'out', amount: num(m[2]), fee: num(m[8]), name: cleanName(m[3]),
+          account: /pochi/i.test(m[6]) ? 'Pochi' : 'M-PESA', balance: num(m[7]), bucket: 'personal', auto: true, tag: null, date: w.date, time: w.time, ts: w.ts };
       } },
     { kind: 'airtime', verified: true,
       re: new RegExp('^' + CODE + CONF + 'You bought Ksh' + AMT + ' of airtime on ' + DATE + ' at ' + TIME + '\\s*\\.?\\s*New M-PESA balance is Ksh' + AMT + '\\.?\\s*Transaction cost, Ksh' + AMT, 'i'),
       build: function (m) {
         var w = when(m[3], m[4]);
         return { code: m[1], dir: 'out', amount: num(m[2]), fee: num(m[6]), name: 'Airtime',
-          account: 'M-PESA', balance: num(m[5]), bucket: null, tag: 'Airtime', date: w.date, time: w.time, ts: w.ts };
+          account: 'M-PESA', balance: num(m[5]), bucket: 'personal', auto: true, tag: 'Airtime', date: w.date, time: w.time, ts: w.ts };
       } },
     { kind: 'own-transfer', verified: true,
       re: new RegExp('^' + CODE + CONF + 'Ksh' + AMT + ' has been moved from your Pochi account to your M-PESA account on ' + DATE + ' at ' + TIME + '\\s*\\.*\\s*New Pochi balance is Ksh' + AMT + '\\.?\\s*New M-PESA balance is Ksh' + AMT, 'i'),
@@ -58,13 +58,13 @@
         return { code: m[1], dir: 'own', amount: num(m[2]), fee: 0, name: 'Pochi to M-PESA',
           account: 'Both', balance: num(m[6]), pochiBal: num(m[5]), bucket: null, tag: null, date: w.date, time: w.time, ts: w.ts };
       } },
-    // Till and shop payments: "Ksh100.00 paid to NAME. on ..."
-    { kind: 'paid', verified: false,
-      re: new RegExp('^' + CODE + CONF + 'Ksh' + AMT + ' paid to (.+?)\\.?\\s+on ' + DATE + ' at ' + TIME + '\\s*\\.?\\s*New M-PESA balance is Ksh' + AMT + '\\.?\\s*Transaction cost, Ksh' + AMT, 'i'),
+    // Till and shop payments: "Ksh100.00 paid to NAME. on ..." (from M-PESA or Pochi)
+    { kind: 'paid', verified: true,
+      re: new RegExp('^' + CODE + CONF + 'Ksh' + AMT + ' paid to (.+?)\\.?\\s+on ' + DATE + ' at ' + TIME + '\\s*\\.*\\s*New (Pochi|M-PESA) balance is Ksh' + AMT + '\\.?\\s*Transaction cost, Ksh' + AMT, 'i'),
       build: function (m) {
         var w = when(m[4], m[5]);
-        return { code: m[1], dir: 'out', amount: num(m[2]), fee: num(m[7]), name: cleanName(m[3]),
-          account: 'M-PESA', balance: num(m[6]), bucket: null, tag: null, date: w.date, time: w.time, ts: w.ts };
+        return { code: m[1], dir: 'out', amount: num(m[2]), fee: num(m[8]), name: cleanName(m[3]),
+          account: /pochi/i.test(m[6]) ? 'Pochi' : 'M-PESA', balance: num(m[7]), bucket: 'personal', auto: true, tag: null, date: w.date, time: w.time, ts: w.ts };
       } },
     // Cash withdrawal at an agent: moves money out of M-PESA into cash, so only the fee is an expense.
     { kind: 'withdrawal', verified: false,
@@ -81,6 +81,29 @@
     { why: 'Cancelled request', re: /^you have cancelled/i },
     { why: 'Account activation notice', re: /^to activate your m-pesa/i }
   ];
+
+
+  // Safety net: any other message that clearly says money was received, sent or paid is still saved (flagged "check")
+  // instead of being dropped. Own-money moves and withdrawals are never guessed.
+  function generic(msg) {
+    if (!/^[A-Z0-9]{10} confirmed/i.test(msg)) return null;
+    if (/moved from|withdraw|you bought|airtime|failed|cancel/i.test(msg)) return null;
+    var code = msg.slice(0, 10).toUpperCase(), a, dir, name;
+    var rin = msg.match(/received ksh\s?([\d,]+(?:\.\d+)?)\s+from\s+(.+?)\s+on\s+(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+    var rout = msg.match(/ksh\s?([\d,]+(?:\.\d+)?)\s+(?:sent to|paid to|paid for)\s+(.+?)\s+on\s+(\d{1,2}\/\d{1,2}\/\d{2,4})/i);
+    var m = rin || rout;
+    if (!m) return null;
+    dir = rin ? 'in' : 'out';
+    var tm = msg.slice(msg.indexOf(m[3])).match(/(\d{1,2}:\d{2}\s*[AP]M)/i);
+    if (!tm) return null;
+    var w = when(m[3], tm[1]);
+    var fee = msg.match(/transaction cost,?\s*ksh\s?([\d,]+(?:\.\d+)?)/i);
+    var bal = msg.match(/new (pochi|m-pesa) balance is ksh\s?([\d,]+(?:\.\d+)?)/i);
+    return { code: code, dir: dir, amount: num(m[1]), fee: fee ? num(fee[1]) : 0, name: cleanName(m[2]),
+      account: bal ? (/pochi/i.test(bal[1]) ? 'Pochi' : 'M-PESA') : 'M-PESA', balance: bal ? num(bal[2]) : null,
+      bucket: dir === 'in' ? 'business' : 'personal', auto: true, tag: null, date: w.date, time: w.time, ts: w.ts,
+      kind: dir === 'in' ? 'other-in' : 'other-out', check: true };
+  }
 
   // Cut pasted text into one string per message, even when one message wraps over several lines.
   function split(text) {
@@ -110,6 +133,8 @@
         }
       }
       if (done) return;
+      var g = generic(msg);
+      if (g) { g.sim = sim || 1; records.push(g); return; }
       for (var j = 0; j < SKIP.length; j++) {
         if (SKIP[j].re.test(msg)) { skipped.push({ why: SKIP[j].why, text: msg }); return; }
       }

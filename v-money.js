@@ -21,8 +21,8 @@
 
   function catCell(r) {
     if (r.dir === 'own') return '<span class="pill">Own money</span>';
-    if (A.needsTag(r)) return '<span class="untag">Tap to tag</span>';
     var b = r.bucket ? '<span class="pill ' + (r.bucket === 'business' ? 'biz' : 'per') + '">' + U.cap(r.bucket) + '</span> ' : '';
+    if (A.needsTag(r)) return b + '<span class="untag">Tap to tag</span>';
     return b + U.esc(r.tag || '');
   }
 
@@ -30,7 +30,7 @@
     html: function () {
       var s = S.D.settings, all = S.D.tx;
       if (!all.length) {
-        return '<div class="empty"><b>No money records yet</b>Copy your M-Pesa messages, tap the orange <b style="display:inline;color:var(--o-d)">+ Add</b> button and paste them in.<div class="gap"></div><button class="btn" data-act="add">Add messages</button></div>';
+        return (A.subBanner ? A.subBanner() : '') + '<div class="empty"><b>No money records yet</b>Copy your M-Pesa messages, tap the orange <b style="display:inline;color:var(--o-d)">+ Add</b> button and paste them in.<div class="gap"></div><button class="btn" data-act="add">Add messages</button></div>';
       }
       var list = visible(), sm = A.summarize(list);
       var ms = months();
@@ -44,8 +44,9 @@
         var lb = s.lastBackup ? U.daysBetween(s.lastBackup, U.todayISO()) + ' days ago' : 'never';
         h += '<div class="banner green">Save a backup of your records (last: ' + lb + '). <button data-act="backup">Save now</button><button data-act="snooze" aria-label="Remind me later" style="text-decoration:none;font-size:18px;padding:0 4px">✕</button></div>';
       }
+      h += A.subBanner ? A.subBanner() : '';
       var un = S.D.tx.filter(A.needsTag).length;
-      if (un) h += '<div class="banner">' + un + (un === 1 ? ' record needs' : ' records need') + ' a tag. <button data-act="untag">' + (st.onlyUntagged ? 'Show all' : 'Show them') + '</button></div>';
+      if (un) h += '<div class="banner">' + un + (un === 1 ? ' record needs' : ' records need') + ' a category. <button data-act="untag">' + (st.onlyUntagged ? 'Show all' : 'Show them') + '</button></div>';
       h += '<div class="row" style="margin-bottom:10px"><select class="sel grow" id="m-month"><option value="all">All time</option>' +
         ms.map(function (k) { return '<option value="' + k + '"' + (k === st.month ? ' selected' : '') + '>' + U.monthLabel(k) + '</option>'; }).join('') + '</select></div>';
       h += '<div class="chips" style="margin-bottom:12px"><button class="chip' + (!st.sim ? ' on' : '') + '" data-sim="0">Both SIMs</button>' +
@@ -86,6 +87,7 @@
           if (a === 'add') A.V.add.open();
           if (a === 'untag') { st.onlyUntagged = !st.onlyUntagged; A.refresh(); }
           if (a === 'close') A.V.more.closeShop();
+          if (a === 'renew') A.codeSheet();
           if (a === 'backup') A.doBackup(function () { A.refresh(); });
           if (a === 'snooze') { S.D.settings.backupSnoozeUntil = U.addDays(U.todayISO(), 7); S.commit('settings'); A.refresh(); }
         };
@@ -140,10 +142,10 @@
       if (r.dir === 'out' && !isSav && !sel.bucket) { err.textContent = 'Please choose Business or Personal.'; return; }
       if (r.dir === 'out' && !tag) { err.textContent = 'Please choose a category or type your own.'; return; }
       if (custom) { var found = A.allTags(r.dir).filter(function (t) { return U.key(t) === U.key(custom); })[0]; tag = found || custom; if (!found) A.rememberTag(custom); }
-      r.bucket = sel.bucket || r.bucket || null; r.tag = tag;
+      r.bucket = sel.bucket || r.bucket || null; r.tag = tag; delete r.auto;
       if (ruleOn) {
         S.D.rules[A.ruleKey(r)] = { bucket: r.bucket, tag: r.tag };
-        S.D.tx.forEach(function (x) { if (x.dir === r.dir && U.key(x.name) === U.key(r.name) && A.needsTag(x)) { if (!x.bucket) x.bucket = r.bucket; if (!x.tag) x.tag = r.tag; } });
+        S.D.tx.forEach(function (x) { if (x !== r && x.dir === r.dir && U.key(x.name) === U.key(r.name) && (x.auto || A.needsTag(x))) { if (x.auto || !x.bucket) { x.bucket = r.bucket; delete x.auto; } if (!x.tag) x.tag = r.tag; } });
       }
       S.commit('tx', 'rules', 'settings');
       A.closeSheet(); U.toast('Saved'); A.refresh();

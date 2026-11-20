@@ -1,4 +1,4 @@
-/* Chil: search across money records, debts and workings. */
+/* Chil: search across money records, debts and business evaluation rows. */
 (function () {
   var C = window.Chil, U = C.U, S = C.Store, A = C.A;
   var q = '';
@@ -22,8 +22,8 @@
       d.kind === 'owed' ? 'owed to me debt customer' : 'i owe credit supplier'].join(' | '));
   }
   function workHay(w) {
-    var v = A.rowValue(w);
-    return norm([w.label, w.tag, w.expr, v == null ? '' : amounts(v), w.sign === '-' ? 'minus' : 'plus'].join(' | '));
+    var sa = C.Calc.evalExpr(w.sales), sk = C.Calc.evalExpr(w.stock), p = (sa == null && sk == null) ? null : (sa || 0) - (sk || 0);
+    return norm([w.item, w.date, U.fmtDay(w.date), amounts(sa), amounts(sk), amounts(p), 'business evaluation stock sales profit'].join(' | '));
   }
   function matches(hay, toks) { return toks.every(function (t) { return hay.indexOf(t) >= 0; }); }
 
@@ -33,7 +33,7 @@
     if (!toks.length) return null;
     out.tx = S.D.tx.filter(function (r) { return matches(txHay(r), toks); }).sort(function (a, b) { return a.ts < b.ts ? 1 : -1; });
     out.debts = S.D.debts.filter(function (d) { return matches(debtHay(d), toks); });
-    out.work = S.D.work.rows.filter(function (w) { return matches(workHay(w), toks); });
+    out.work = S.D.biz.rows.filter(function (w) { return matches(workHay(w), toks); });
     return out;
   }
 
@@ -64,10 +64,10 @@
       h += '</div>';
     }
     if (r.work.length) {
-      h += '<div class="card"><h3>Workings (' + r.work.length + ')</h3>';
+      h += '<div class="card"><h3>Business evaluation (' + r.work.length + ')</h3>';
       r.work.forEach(function (w) {
-        var v = A.rowValue(w);
-        h += '<div class="list-item" data-work="1" style="cursor:pointer"><div class="grow"><b>' + U.esc(w.label || 'Untitled') + '</b><small>' + U.esc(w.expr || '') + (w.tag ? ' · ' + U.esc(w.tag) : '') + '</small></div><b class="num">' + (w.sign === '-' ? '−' : '') + (v == null ? '?' : U.money2(v)) + '</b></div>';
+        var sa = C.Calc.evalExpr(w.sales), sk = C.Calc.evalExpr(w.stock), p = (sa == null && sk == null) ? null : U.round2((sa || 0) - (sk || 0));
+        h += '<div class="list-item" data-work="1" style="cursor:pointer"><div class="grow"><b>' + U.esc(w.item || 'Item') + '</b><small>' + U.fmtDayYear(w.date) + ' · stock ' + (sk == null ? '-' : U.money(sk)) + ' · sales ' + (sa == null ? '-' : U.money(sa)) + '</small></div><b class="num ' + (p < 0 ? 'neg' : 'pos') + '">' + (p == null ? '' : (p < 0 ? '−' : '') + U.money(Math.abs(p))) + '</b></div>';
       });
       h += '</div>';
     }
@@ -83,7 +83,7 @@
       function bind() {
         U.$$('[data-tx]', res).forEach(function (e) { e.onclick = function () { A.tagSheet(e.getAttribute('data-tx')); }; });
         U.$$('[data-debt]', res).forEach(function (e) { e.onclick = function () { A.V.debts.open(e.getAttribute('data-debt')); }; });
-        U.$$('[data-work]', res).forEach(function (e) { e.onclick = function () { A.st.calcMode = 'work'; A.go('calc'); }; });
+        U.$$('[data-work]', res).forEach(function (e) { e.onclick = function () { A.go('biz'); }; });
         x.classList.toggle('hide', !q);
       }
       inp.oninput = function () { q = inp.value; res.innerHTML = resultHTML(); bind(); };
