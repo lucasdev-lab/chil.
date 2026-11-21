@@ -19,11 +19,10 @@
   function debtHay(d) {
     var i = A.debtInfo(d);
     return norm([d.name, d.desc, amounts(d.amount), amounts(i.bal), d.date, d.due, U.fmtDay(d.date), U.fmtDay(d.due), i.label,
-      d.kind === 'owed' ? 'owed to me debt customer' : 'i owe credit supplier'].join(' | '));
+      d.kind === 'owed' ? 'debtor debtors owed to me debt customer' : 'creditor creditors i owe credit supplier'].join(' | '));
   }
   function workHay(w) {
-    var sa = C.Calc.evalExpr(w.sales), sk = C.Calc.evalExpr(w.stock), p = (sa == null && sk == null) ? null : (sa || 0) - (sk || 0);
-    return norm([w.item, w.date, U.fmtDay(w.date), amounts(sa), amounts(sk), amounts(p), 'business evaluation stock sales profit'].join(' | '));
+    return norm([w.item, w.date, U.fmtDay(w.date), amounts(+w.amount), w.kind === 'stock' ? 'stock bought' : 'expense cost', 'business'].join(' | '));
   }
   function matches(hay, toks) { return toks.every(function (t) { return hay.indexOf(t) >= 0; }); }
 
@@ -55,19 +54,18 @@
       h += '</div>';
     }
     if (r.debts.length) {
-      h += '<div class="card"><h3>Debts and credits (' + r.debts.length + ')</h3>';
+      h += '<div class="card"><h3>Debtors and creditors (' + r.debts.length + ')</h3>';
       r.debts.forEach(function (d) {
         var i = A.debtInfo(d);
-        h += '<div class="list-item" data-debt="' + d.id + '" style="cursor:pointer"><div class="grow"><b>' + U.esc(d.name) + '</b><small>' + (d.kind === 'owed' ? 'Owed to me' : 'I owe') + (d.desc ? ' · ' + U.esc(d.desc) : '') + (d.due ? ' · due ' + U.fmtDayYear(d.due) : '') + '</small></div>' +
+        h += '<div class="list-item" data-debt="' + d.id + '" style="cursor:pointer"><div class="grow"><b>' + U.esc(d.name) + '</b><small>' + (d.kind === 'owed' ? 'Debtor (owes me)' : 'Creditor (I owe)') + (d.desc ? ' · ' + U.esc(d.desc) : '') + (d.due ? ' · due ' + U.fmtDayYear(d.due) : '') + '</small></div>' +
           '<div class="right"><b class="num">' + U.money2(i.bal) + '</b><br><span class="pill ' + (i.key === 'over' ? 'bad' : i.key === 'paid' ? 'ok' : i.key === 'soon' ? 'warn' : '') + '">' + i.label + '</span></div></div>';
       });
       h += '</div>';
     }
     if (r.work.length) {
-      h += '<div class="card"><h3>Business evaluation (' + r.work.length + ')</h3>';
+      h += '<div class="card"><h3>Business costs (' + r.work.length + ')</h3>';
       r.work.forEach(function (w) {
-        var sa = C.Calc.evalExpr(w.sales), sk = C.Calc.evalExpr(w.stock), p = (sa == null && sk == null) ? null : U.round2((sa || 0) - (sk || 0));
-        h += '<div class="list-item" data-work="1" style="cursor:pointer"><div class="grow"><b>' + U.esc(w.item || 'Item') + '</b><small>' + U.fmtDayYear(w.date) + ' · stock ' + (sk == null ? '-' : U.money(sk)) + ' · sales ' + (sa == null ? '-' : U.money(sa)) + '</small></div><b class="num ' + (p < 0 ? 'neg' : 'pos') + '">' + (p == null ? '' : (p < 0 ? '−' : '') + U.money(Math.abs(p))) + '</b></div>';
+        h += '<div class="list-item" data-work="1" style="cursor:pointer"><div class="grow"><b>' + U.esc(w.item || (w.kind === 'stock' ? 'Stock' : 'Cost')) + '</b><small>' + U.fmtDayYear(w.date) + ' · ' + (w.kind === 'stock' ? 'Stock bought' : 'Other cost') + '</small></div><b class="num neg">' + U.money(+w.amount || 0) + '</b></div>';
       });
       h += '</div>';
     }

@@ -26,11 +26,51 @@
     return b + U.esc(r.tag || '');
   }
 
+  /* ---------- daily cash card: brought forward, cash in, cash used, closing ---------- */
+  function sgn(n) { return (n < 0 ? '−' : '') + U.money(Math.abs(n)); }
+  function cashCard() {
+    var d = st.cashDay || U.todayISO(), e = A.ledgerFor(d);
+    var first = !A.ledger().length || A.ledger()[0].date >= d;
+    return '<div class="card cashcard"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Cash for the day</h3>' +
+      '<input class="in" type="date" id="cc-date" value="' + d + '" style="width:auto;padding:6px 8px;min-height:36px"></div>' +
+      '<div class="cc-grid">' +
+      '<label><small>Brought forward' + (e.typed ? ' (typed)' : ' from yesterday') + '</small><input class="in" id="cc-open" inputmode="decimal" autocomplete="off" value="' + (e.open ? U.esc(String(e.open)) : '') + '" placeholder="0"></label>' +
+      '<label><small>Cash in (cash sales)</small><input class="in" id="cc-in" inputmode="decimal" autocomplete="off" value="' + (e.cashIn ? U.esc(String(e.cashIn)) : '') + '" placeholder="0"></label>' +
+      '<label><small>Cash used</small><input class="in" id="cc-used" inputmode="decimal" autocomplete="off" value="' + (e.cashUsed ? U.esc(String(e.cashUsed)) : '') + '" placeholder="0"></label>' +
+      '<div class="cc-box"><small>Closing (left for tomorrow)</small><b class="num" id="cc-close">' + sgn(e.close) + '</b></div></div>' +
+      '<p class="hint" id="cc-hint" style="margin:8px 0 0">M-Pesa in ' + U.money(e.mIn) + ', M-Pesa out ' + U.money(e.mOut) + (e.bizPaid ? ', business costs paid in cash ' + U.money(e.bizPaid) + ' (from the Business tab)' : '') + '. Closing = brought forward + M-Pesa in + cash in − M-Pesa out − cash used' + (e.bizPaid ? ' − business costs' : '') + '.' +
+      (first ? ' <b>First day:</b> type all the money you started with (cash and M-Pesa) in Brought forward.' : '') + '</p></div>';
+  }
+  function bindCash(root) {
+    var dEl = U.$('#cc-date', root); if (!dEl) return;
+    dEl.onchange = function () { if (dEl.value) { st.cashDay = dEl.value; A.refresh(); } };
+    function parse(el) { var t = el.value.trim(); if (t === '') return 0; var v = C.Calc.evalExpr(t); return v == null || v < 0 ? null : U.round2(v); }
+    function rec() { var d = st.cashDay || U.todayISO(); return S.D.cash.days[d] || (S.D.cash.days[d] = { in: 0, used: 0, open: null }); }
+    function after() {
+      var e = A.ledgerFor(st.cashDay || U.todayISO());
+      U.$('#cc-close', root).textContent = sgn(e.close);
+    }
+    [['#cc-in', 'in'], ['#cc-used', 'used']].forEach(function (x) {
+      var el = U.$(x[0], root);
+      el.onchange = function () {
+        var v = parse(el); if (v == null) { U.toast('Enter an amount, for example 500'); var old = (S.D.cash.days[st.cashDay || U.todayISO()] || {})[x[1]]; el.value = old ? old : ''; return; }
+        rec()[x[1]] = v; S.commit('cash'); el.value = v ? v : ''; after();
+      };
+    });
+    var op = U.$('#cc-open', root);
+    op.onchange = function () {
+      var t = op.value.trim(), d = st.cashDay || U.todayISO(), r = rec();
+      if (t === '') { r.open = null; }
+      else { var v = C.Calc.evalExpr(t); if (v == null) { U.toast('Enter an amount'); return; } v = U.round2(v); var auto = A.ledgerFor(d).auto; r.open = v === auto ? null : v; }
+      S.commit('cash'); A.refresh();
+    };
+  }
+
   var M = {
     html: function () {
       var s = S.D.settings, all = S.D.tx;
       if (!all.length) {
-        return (A.subBanner ? A.subBanner() : '') + '<div class="empty"><b>No money records yet</b>Copy your M-Pesa messages, tap the orange <b style="display:inline;color:var(--o-d)">+ Add</b> button and paste them in.<div class="gap"></div><button class="btn" data-act="add">Add messages</button></div>';
+        return (A.subBanner ? A.subBanner() : '') + cashCard() + '<div class="empty"><b>No money records yet</b>Copy your M-Pesa messages, tap the orange <b style="display:inline;color:var(--o-d)">+ Add</b> button and paste them in.<div class="gap"></div><button class="btn" data-act="add">Add messages</button></div>';
       }
       var list = visible(), sm = A.summarize(list);
       var ms = months();
@@ -45,6 +85,7 @@
         h += '<div class="banner green">Save a backup of your records (last: ' + lb + '). <button data-act="backup">Save now</button><button data-act="snooze" aria-label="Remind me later" style="text-decoration:none;font-size:18px;padding:0 4px">✕</button></div>';
       }
       h += A.subBanner ? A.subBanner() : '';
+      h += cashCard();
       var un = S.D.tx.filter(A.needsTag).length;
       if (un) h += '<div class="banner">' + un + (un === 1 ? ' record needs' : ' records need') + ' a category. <button data-act="untag">' + (st.onlyUntagged ? 'Show all' : 'Show them') + '</button></div>';
       h += '<div class="row" style="margin-bottom:10px"><select class="sel grow" id="m-month"><option value="all">All time</option>' +
@@ -59,10 +100,10 @@
       var days = {};
       list.forEach(function (r) { (days[r.date] = days[r.date] || []).push(r); });
       var keys = Object.keys(days).sort().reverse();
-      h += '<div class="tw"><table class="t"><thead><tr><th>Date</th><th class="name">Name</th><th class="r">In</th><th class="r">Out</th><th>Category</th><th>Account</th><th class="r">Balance</th><th>Code</th></tr></thead><tbody>';
+      h += '<div class="tw"><table class="t"><thead><tr><th>Date</th><th class="name">Name</th><th class="r">In</th><th class="r">Out</th><th>Category</th><th>Account</th><th>Code</th></tr></thead><tbody>';
       keys.forEach(function (d) {
         var dt = A.summarize(days[d]);
-        h += '<tr class="day"><td colspan="2" class="name">' + U.esc(U.fmtDayLong(d)) + '</td><td colspan="6">In ' + U.money(dt.inn) + ' &nbsp;·&nbsp; Out ' + U.money(dt.spent + dt.saved) + '</td></tr>';
+        h += '<tr class="day"><td colspan="2" class="name">' + U.esc(U.fmtDayLong(d)) + '</td><td colspan="5">In ' + U.money(dt.inn) + ' &nbsp;·&nbsp; Out ' + U.money(dt.spent + dt.saved) + ' &nbsp;·&nbsp; Closing ' + sgn(A.ledgerFor(d).close) + '</td></tr>';
         days[d].slice().sort(function (a, b) { return a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0; }).forEach(function (r) {
           var amt = r.dir === 'in' ? '<td class="cin num">' + U.money2(r.amount) + '</td><td class="cout"></td>'
             : r.dir === 'out' ? '<td class="cin"></td><td class="cout num">' + U.money2(r.amount + (r.fee || 0)) + '</td>'
@@ -70,7 +111,7 @@
           h += '<tr class="tx" data-code="' + r.code + '"><td>' + U.fmtDay(r.date) + '<br><small class="mute">' + U.time12(r.time) + '</small></td>' +
             '<td class="name">' + U.esc(r.name) + (r.check ? ' <span class="pill warn">check</span>' : '') + '</td>' + amt +
             '<td>' + catCell(r) + '</td><td>' + U.esc(r.account) + (S.D.tx.some(function (x) { return x.sim === 2; }) ? ' <small class="mute">' + U.esc(simName(r.sim)) + '</small>' : '') + '</td>' +
-            '<td class="r num">' + (r.balance != null ? U.money2(r.balance) : '') + '</td><td class="code">' + r.code + '</td></tr>';
+            '<td class="code">' + r.code + '</td></tr>';
         });
       });
       h += '</tbody></table></div>';
@@ -92,6 +133,7 @@
           if (a === 'snooze') { S.D.settings.backupSnoozeUntil = U.addDays(U.todayISO(), 7); S.commit('settings'); A.refresh(); }
         };
       });
+      bindCash(root);
       U.$$('tr.tx', root).forEach(function (tr) { tr.onclick = function () { A.tagSheet(tr.getAttribute('data-code')); }; });
     }
   };

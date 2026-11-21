@@ -4,7 +4,7 @@
   var A = { V: {}, st: {
     tab: 'money', sim: 0, month: 'all',
     sumMode: 'day', sumDay: U.todayISO(), sumMonth: U.monthKey(U.todayISO()), sumYear: String(new Date().getFullYear()),
-    debtView: 'owed', bizMonth: 'all', cmpOpen: false
+    debtView: 'owed', bizMonth: 'all', cmpOpen: false, cashDay: U.todayISO(), bsDate: U.todayISO(), custMonth: 'all', custOpen: {}
   } };
   C.A = A;
 
@@ -16,6 +16,8 @@
     biz: ic('<path d="M3 17l5-5 4 4 8-9"/><path d="M15 7h5v5"/>'),
     calc: ic('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/>'),
     debt: ic('<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>'),
+    more: ic('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'),
+    people: ic('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 5.2a3.2 3.2 0 0 1 0 5.6M18 14.3c1.8.8 3 2.6 3 4.7"/>'),
     search: ic('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
     gear: ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>')
   };
@@ -128,26 +130,80 @@
     return Object.keys(obj).map(function (k) { return [k, obj[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
   };
 
+  /* ---------- daily cash, carried from day to day ---------- */
+  A.bizPaid = function (date) {
+    return U.round2(U.sum(S.D.biz.rows.filter(function (r) { return r.date === date; }), function (r) { return +r.amount || 0; }));
+  };
+  // One entry per day that has any activity. open = brought forward from the day before (or typed), close = what is left.
+  A.ledger = function () {
+    var byDay = {}, dates = {};
+    S.D.tx.forEach(function (r) { (byDay[r.date] = byDay[r.date] || []).push(r); dates[r.date] = 1; });
+    Object.keys(S.D.cash.days).forEach(function (d) { var c = S.D.cash.days[d]; if (c.in || c.used || c.open != null) dates[d] = 1; });
+    S.D.biz.rows.forEach(function (r) { dates[r.date] = 1; });
+    var out = [], prev = 0;
+    Object.keys(dates).sort().forEach(function (d) {
+      var sm = A.summarize(byDay[d] || []), c = S.D.cash.days[d] || { in: 0, used: 0, open: null };
+      var bp = A.bizPaid(d), auto = prev, open = c.open != null ? c.open : auto;
+      var close = U.round2(open + sm.left + (c.in || 0) - (c.used || 0) - bp);
+      out.push({ date: d, auto: auto, open: open, typed: c.open != null, mIn: sm.inn, mOut: U.round2(sm.spent + sm.saved), cashIn: c.in || 0, cashUsed: c.used || 0, bizPaid: bp, close: close, sm: sm });
+      prev = close;
+    });
+    return out;
+  };
+  // The entry for one date. A day with no activity just repeats the last closing.
+  A.ledgerFor = function (date) {
+    var l = A.ledger(), last = 0, hit = null;
+    l.forEach(function (e) { if (e.date === date) hit = e; else if (e.date < date) last = e.close; });
+    return hit || { date: date, auto: last, open: last, typed: false, mIn: 0, mOut: 0, cashIn: 0, cashUsed: 0, bizPaid: 0, close: last, sm: A.summarize([]) };
+  };
+  A.moneyLeftAt = function (date) {
+    var l = A.ledger(), v = 0;
+    l.forEach(function (e) { if (e.date <= date) v = e.close; });
+    return v;
+  };
+  // Totals for the period shown in Summary.
+  A.periodCash = function () {
+    var s = A.st, from, to;
+    if (s.sumMode === 'day') { from = to = s.sumDay; }
+    else if (s.sumMode === 'month') { from = s.sumMonth; to = s.sumMonth + '-31'; }
+    else { from = s.sumYear; to = s.sumYear + '-12-31'; }
+    var rows = A.ledger().filter(function (e) { return e.date >= from && e.date <= to; });
+    if (!rows.length) return null;
+    var t = { open: rows[0].open, close: rows[rows.length - 1].close, cashIn: 0, cashUsed: 0, bizPaid: 0 };
+    rows.forEach(function (e) { t.cashIn += e.cashIn; t.cashUsed += e.cashUsed; t.bizPaid += e.bizPaid; });
+    t.cashIn = U.round2(t.cashIn); t.cashUsed = U.round2(t.cashUsed); t.bizPaid = U.round2(t.bizPaid);
+    return t;
+  };
+
   /* ---------- comparison (days of a month, months of a year, or all years) ---------- */
   A.compare = function (mode) {
     var st = A.st, groups = {}, title, mk = U.monthKey(st.sumDay), yr = st.sumMonth.slice(0, 4);
-    S.D.tx.forEach(function (r) {
+    A.ledger().forEach(function (e) {
       var k;
-      if (mode === 'day') { if (U.monthKey(r.date) !== mk) return; k = r.date; }
-      else if (mode === 'month') { if (r.date.slice(0, 4) !== yr) return; k = U.monthKey(r.date); }
-      else k = r.date.slice(0, 4);
-      (groups[k] = groups[k] || []).push(r);
+      if (mode === 'day') { if (U.monthKey(e.date) !== mk) return; k = e.date; }
+      else if (mode === 'month') { if (e.date.slice(0, 4) !== yr) return; k = U.monthKey(e.date); }
+      else k = e.date.slice(0, 4);
+      (groups[k] = groups[k] || []).push(e);
     });
     title = mode === 'day' ? 'Days of ' + U.monthLabel(mk) : mode === 'month' ? 'Months of ' + yr : 'All years';
     var rows = Object.keys(groups).sort().map(function (k) {
-      var sm = A.summarize(groups[k]);
-      var label = mode === 'day' ? U.fmtDayLong(k) : mode === 'month' ? U.monthLabel(k) : k;
-      var short = mode === 'day' ? U.DAYS[U.parseISO(k).getDay()].slice(0, 3) + ' ' + U.fmtDay(k) : mode === 'month' ? U.MON[+k.slice(5) - 1] + ' ' + k.slice(2, 4) : k;
-      return { key: k, label: label, short: short, bIn: sm.inBiz, bOut: sm.outBiz, pIn: sm.inPer, pOut: sm.outPer, made: sm.left, inn: sm.inn, out: U.round2(sm.spent + sm.saved) };
+      var es = groups[k], r = { bIn: 0, bOut: 0, pIn: 0, pOut: 0, inn: 0, out: 0, made: 0 };
+      es.forEach(function (e) {
+        r.bIn += e.sm.inBiz + e.cashIn; r.bOut += e.sm.outBiz + e.bizPaid;
+        r.pIn += e.sm.inPer; r.pOut += e.sm.outPer + e.cashUsed;
+        r.inn += e.sm.inn + e.cashIn; r.out += e.sm.spent + e.sm.saved + e.cashUsed + e.bizPaid;
+      });
+      Object.keys(r).forEach(function (x) { r[x] = U.round2(r[x]); });
+      r.made = U.round2(r.inn - r.out);
+      r.key = k; r.close = es[es.length - 1].close;
+      r.label = mode === 'day' ? U.fmtDayLong(k) : mode === 'month' ? U.monthLabel(k) : k;
+      r.short = mode === 'day' ? U.DAYS[U.parseISO(k).getDay()].slice(0, 3) + ' ' + U.fmtDay(k) : mode === 'month' ? U.MON[+k.slice(5) - 1] + ' ' + k.slice(2, 4) : k;
+      return r;
     });
     var t = { bIn: 0, bOut: 0, pIn: 0, pOut: 0, made: 0, inn: 0, out: 0 };
     rows.forEach(function (r) { Object.keys(t).forEach(function (k) { t[k] += r[k]; }); });
     Object.keys(t).forEach(function (k) { t[k] = U.round2(t[k]); });
+    t.close = rows.length ? rows[rows.length - 1].close : 0;
     return { title: title, rows: rows, total: t, unit: mode === 'day' ? 'Day' : mode === 'month' ? 'Month' : 'Year' };
   };
 
@@ -189,13 +245,15 @@
   };
 
   /* ---------- rendering ---------- */
-  var TABS = [['money', 'Money', 'money'], ['sum', 'Summary', 'sum'], ['add', 'Add', 'plus'], ['biz', 'Business', 'biz'], ['calc', 'Calc', 'calc'], ['debts', 'Debts', 'debt']];
+  var NAV = [['money', 'Money', 'money'], ['sum', 'Summary', 'sum'], ['add', 'Add', 'plus'], ['biz', 'Business', 'biz'], ['menu', 'More', 'more']];
+  var MORE_TABS = ['menu', 'customers', 'debts', 'calc', 'search', 'more'];
 
   A.shell = function () {
     var s = S.D.settings;
-    var nav = TABS.map(function (t) {
+    var nav = NAV.map(function (t) {
       if (t[0] === 'add') return '<button class="add" data-tab="add" aria-label="Add messages"><span>' + A.IC.plus + '</span><em>Add</em></button>';
-      return '<button data-tab="' + t[0] + '" class="' + (A.st.tab === t[0] ? 'on' : '') + '">' + A.IC[t[2]] + t[1] + '</button>';
+      var on = t[0] === 'menu' ? MORE_TABS.indexOf(A.st.tab) >= 0 : A.st.tab === t[0];
+      return '<button data-tab="' + t[0] + '" class="' + (on ? 'on' : '') + '">' + A.IC[t[2]] + t[1] + '</button>';
     }).join('');
     U.$('#app').innerHTML =
       '<div class="top"><div class="lockup">' + C.Logo.icon(30) + C.Logo.wordmark(20) + '</div><div class="shop">' + U.esc(s.shopName) + '</div>' +

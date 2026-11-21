@@ -62,6 +62,14 @@
     var n = window.CHIL_CONFIG.SELLER_WHATSAPP;
     return n ? 'https://wa.me/' + n + '?text=' + encodeURIComponent(msg) : '';
   }
+  // A green banner that opens a WhatsApp chat with the seller. The number itself is never shown.
+  A.helpBanner = function () {
+    var wa = sellerWA('Hello, I need help with Chil ' + (window.CHIL_CONFIG.VERSION || '') + '. My Device ID is ' + Act.shownId() + '.');
+    if (!wa) return '';
+    return '<a class="helpwa" href="' + wa + '" target="_blank" rel="noopener"><span class="hw-ic">' +
+      '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M12 2a10 10 0 0 0-8.6 15.1L2 22l5-1.3A10 10 0 1 0 12 2zm5.2 14.2c-.2.6-1.3 1.2-1.8 1.2-.5.1-1 .2-3.3-.7-2.8-1.2-4.6-4-4.7-4.2-.1-.2-1.1-1.5-1.1-2.8 0-1.3.7-1.9.9-2.2.2-.3.5-.3.7-.3h.5c.2 0 .4 0 .6.5l.8 2c.1.2.1.4 0 .5l-.4.6-.3.4c-.1.2-.3.3-.1.6.2.3.8 1.3 1.7 2.1 1.2 1 2.1 1.3 2.4 1.5.3.1.5.1.6-.1l.9-1.1c.2-.3.4-.2.6-.1l1.9.9c.3.1.5.2.5.3.1.2.1.8-.1 1.4z"/></svg></span>' +
+      '<span class="hw-tx"><b>Need help or have a complaint?</b><small>Chat with us on WhatsApp</small></span></a>';
+  };
   function reasonText(r) {
     if (r.reason === 'ended') return 'That code already ended on ' + U.fmtDayYear(r.end) + '. Ask the seller for a new one.';
     return 'That code is not valid for this phone. Check it was copied fully, or ask the seller.';
@@ -261,21 +269,19 @@
       cs.forEach(function (r) { L.push(r[0] + ': ' + U.money(r[1])); });
     }
     if (o.work) {
-      var bz = S.D.biz.rows.filter(function (r) { return U.monthKey(r.date) === mk; }), bt = 0, bs = 0, bk = 0, bn = 0;
-      bz.forEach(function (r) {
-        var sa = C.Calc.evalExpr(r.sales), sk = C.Calc.evalExpr(r.stock);
-        if (sa == null && sk == null) return;
-        bs += sa || 0; bk += sk || 0; bn++;
-      });
-      bt = U.round2(bs - bk);
-      if (bn) { L.push(''); L.push('*Business evaluation*'); L.push('Sales: KSh ' + U.money(bs) + ', Stock: KSh ' + U.money(bk)); L.push((bt < 0 ? 'Loss' : 'Profit') + ': KSh ' + U.money(Math.abs(bt)) + ' from ' + bn + (bn === 1 ? ' row' : ' rows')); }
+      var bp = A.bizCalc(mk + '-01', mk + '-31');
+      if (bp.sales || bp.exp || bp.stockBuy) {
+        L.push(''); L.push('*Business*');
+        L.push('Sales: KSh ' + U.money(bp.sales) + ', stock sold (cost): KSh ' + U.money(bp.cogs) + ', other costs: KSh ' + U.money(bp.exp));
+        L.push((bp.profit < 0 ? 'Loss' : 'Profit') + ': KSh ' + U.money(Math.abs(bp.profit)));
+      }
     }
     if (o.debts) {
       var a = A.debtTotals('owed'), b = A.debtTotals('owe');
       if (a.count || b.count) {
-        L.push(''); L.push('*Debts and credits*');
-        L.push('Owed to me: KSh ' + U.money(a.open) + (a.over ? ' (overdue ' + U.money(a.over) + ')' : ''));
-        L.push('I owe: KSh ' + U.money(b.open) + (b.over ? ' (overdue ' + U.money(b.over) + ')' : ''));
+        L.push(''); L.push('*Debtors and creditors*');
+        L.push('Debtors (owe me): KSh ' + U.money(a.open) + (a.over ? ' (overdue ' + U.money(a.over) + ')' : ''));
+        L.push('Creditors (I owe): KSh ' + U.money(b.open) + (b.over ? ' (overdue ' + U.money(b.over) + ')' : ''));
       }
     }
     L.push(''); L.push('Sent from Chil. Your money, sorted.');
@@ -294,7 +300,7 @@
         '<label class="f">Month</label><select class="sel" id="r-month">' + ms.map(function (k) { return '<option value="' + k + '"' + (k === mk ? ' selected' : '') + '>' + U.monthLabel(k) + '</option>'; }).join('') + '</select>' +
         '<label class="f">Send to</label><select class="sel" id="r-to"><option value="">Choose when sending</option>' + s.recipients.map(function (r) { return '<option value="' + r.id + '"' + (rec && rec.id === r.id ? ' selected' : '') + '>' + U.esc(recipLabel(r)) + '</option>'; }).join('') + '<option value="__new">+ Add new person</option></select>' +
         '<label class="f">Include</label>' +
-        [['split', 'Business and personal'], ['cat', 'Where money went'], ['work', 'Business evaluation'], ['debts', 'Debts and credits']].map(function (p) {
+        [['split', 'Business and personal'], ['cat', 'Where money went'], ['work', 'Business profit'], ['debts', 'Debtors and creditors']].map(function (p) {
           return '<label class="check-row"><input type="checkbox" data-o="' + p[0] + '"' + (o[p[0]] ? ' checked' : '') + '> ' + p[1] + '</label>';
         }).join('') +
         '<label class="f">Preview</label><pre class="report">' + U.esc(text) + '</pre><div class="gap"></div>' +
@@ -376,6 +382,7 @@
     h += '<div class="card"><h3>Backup</h3><p class="hint" style="margin:0 0 10px">All your data stays on this phone. Save a backup file now and then, especially before clearing browser data or changing phones.' + (s.lastBackup ? ' Last backup: ' + U.fmtDayYear(s.lastBackup) + '.' : ' You have not made a backup yet.') + '</p>' +
       '<div class="row"><button class="btn grow" id="s-bk">Save backup</button><button class="btn ghost grow" id="s-rs">Restore</button></div><input type="file" id="s-file" accept=".json,application/json" class="hide"></div>';
     h += A.subCardHTML();
+    h += A.helpBanner();
     h += '<div class="card"><h3>About</h3><div class="list-item"><span>Version</span><b>' + window.CHIL_CONFIG.VERSION + '</b></div><div class="list-item"><span>Device ID</span><b class="num">' + Act.shownId() + '</b></div>' +
       '<p class="hint">Chil works offline. Nothing is sent anywhere unless you press WhatsApp, Email or Share.</p><button class="btn ghost block" id="s-wipe" style="color:var(--red);margin-top:6px">Erase all data on this phone</button></div>';
     return h;

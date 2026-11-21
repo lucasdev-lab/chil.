@@ -19,21 +19,33 @@
     }).join('') + '</div>';
   }
 
+  function cashRowsHTML(pc) {
+    return '<div class="list-item"><span>Brought forward</span><b class="num">' + sg(pc.open) + '</b></div>' +
+      '<div class="list-item"><span>Cash in (cash sales)</span><b class="num pos">' + U.money(pc.cashIn) + '</b></div>' +
+      '<div class="list-item"><span>Cash used</span><b class="num neg">' + U.money(pc.cashUsed) + '</b></div>' +
+      (pc.bizPaid ? '<div class="list-item"><span>Business costs paid in cash</span><b class="num neg">' + U.money(pc.bizPaid) + '</b></div>' : '') +
+      '<div class="list-item"><span><b>Closing (carried to the next day)</b></span><b class="num">' + sg(pc.close) + '</b></div>';
+  }
+  function sg(n) { return (n < 0 ? '−' : '') + U.money(Math.abs(n)); }
+
   // Printable page for PDF.
   A.summaryPrintHTML = function () {
     var list = A.periodList(), sm = A.summarize(list);
     var h = '<h1>Chil summary: ' + U.esc(A.shopLabel()) + '</h1><p class="sub">' + U.esc(A.periodLabel()) + ' · made ' + U.fmtDayYear(U.todayISO()) + '</p>';
     h += '<h2>Totals</h2><table class="kv"><tr><td>Money in</td><td class="n">' + U.money2(sm.inn) + '</td></tr><tr><td>Money spent (incl. fees)</td><td class="n">' + U.money2(sm.spent) + '</td></tr>' +
       '<tr><td>Saved</td><td class="n">' + U.money2(sm.saved) + '</td></tr><tr><td>Left</td><td class="n">' + U.money2(sm.left) + '</td></tr></table>';
+    var pc = A.periodCash();
+    if (pc) h += '<h2>Cash</h2><table class="kv"><tr><td>Brought forward</td><td class="n">' + U.money2(pc.open) + '</td></tr><tr><td>Cash in (cash sales)</td><td class="n">' + U.money2(pc.cashIn) + '</td></tr><tr><td>Cash used</td><td class="n">' + U.money2(pc.cashUsed) + '</td></tr>' +
+      (pc.bizPaid ? '<tr><td>Business costs paid in cash</td><td class="n">' + U.money2(pc.bizPaid) + '</td></tr>' : '') + '<tr><td>Closing (carried forward)</td><td class="n">' + U.money2(pc.close) + '</td></tr></table>';
     h += '<h2>Business and personal</h2><table><tr><th></th><th class="n">Business</th><th class="n">Personal</th><th class="n">Not tagged</th></tr>' +
       '<tr><td>Money in</td><td class="n">' + U.money2(sm.inBiz) + '</td><td class="n">' + U.money2(sm.inPer) + '</td><td class="n">' + U.money2(sm.inUn) + '</td></tr>' +
       '<tr><td>Spent</td><td class="n">' + U.money2(sm.outBiz) + '</td><td class="n">' + U.money2(sm.outPer) + '</td><td class="n">' + U.money2(sm.outUn) + '</td></tr></table>';
     h += '<h2>Where the money went</h2><table><tr><th>Category</th><th class="n">Amount</th></tr>' + (A.sorted(sm.cats).map(function (r) { return '<tr><td>' + U.esc(r[0]) + '</td><td class="n">' + U.money2(r[1]) + '</td></tr>'; }).join('') || '<tr><td colspan="2">Nothing</td></tr>') + '</table>';
     h += '<h2>Where the money came from</h2><table><tr><th>Name</th><th class="n">Amount</th></tr>' + (A.sorted(sm.from).map(function (r) { return '<tr><td>' + U.esc(r[0]) + '</td><td class="n">' + U.money2(r[1]) + '</td></tr>'; }).join('') || '<tr><td colspan="2">Nothing</td></tr>') + '</table>';
-    h += '<h2>All records (' + list.length + ')</h2><table><tr><th>Date</th><th>Name</th><th class="n">In</th><th class="n">Out</th><th>Type</th><th>Category</th><th>Account</th><th class="n">Balance</th><th>Code</th></tr>' +
+    h += '<h2>All records (' + list.length + ')</h2><table><tr><th>Date</th><th>Name</th><th class="n">In</th><th class="n">Out</th><th>Type</th><th>Category</th><th>Account</th><th>Code</th></tr>' +
       list.slice().sort(function (a, b) { return a.ts < b.ts ? -1 : 1; }).map(function (r) {
         return '<tr><td>' + U.fmtDay(r.date) + ' ' + U.time12(r.time) + '</td><td>' + U.esc(r.name) + '</td><td class="n">' + (r.dir === 'in' ? U.money2(r.amount) : '') + '</td><td class="n">' + (r.dir === 'out' ? U.money2(r.amount + (r.fee || 0)) : (r.dir === 'own' && r.fee ? U.money2(r.fee) : '')) + '</td><td>' +
-          U.esc(r.bucket ? U.cap(r.bucket) : (r.dir === 'own' ? 'Own money' : '')) + '</td><td>' + U.esc(r.tag || '') + '</td><td>' + U.esc(r.account) + '</td><td class="n">' + (r.balance != null ? U.money2(r.balance) : '') + '</td><td>' + r.code + '</td></tr>';
+          U.esc(r.bucket ? U.cap(r.bucket) : (r.dir === 'own' ? 'Own money' : '')) + '</td><td>' + U.esc(r.tag || '') + '</td><td>' + U.esc(r.account) + '</td><td>' + r.code + '</td></tr>';
       }).join('') + '</table>';
     return h;
   };
@@ -42,9 +54,9 @@
   function cmpCell(i, o) { return '<span class="pos">In ' + U.money(i) + '</span><br><span class="neg">Out ' + U.money(o) + '</span>'; }
   function madeCell(n) { return '<b class="' + (n < 0 ? 'neg' : n > 0 ? 'pos' : '') + '">' + (n < 0 ? '−' : n > 0 ? '+' : '') + U.money(Math.abs(n)) + '</b>'; }
   function cmpTable(d) {
-    var h = '<div class="tw"><table class="t cmp"><thead><tr><th>' + d.unit + '</th><th class="r">Business</th><th class="r">Personal</th><th class="r">Made / Lost</th></tr></thead><tbody>';
-    d.rows.forEach(function (r) { h += '<tr><td>' + U.esc(r.short) + '</td><td class="r num">' + cmpCell(r.bIn, r.bOut) + '</td><td class="r num">' + cmpCell(r.pIn, r.pOut) + '</td><td class="r num">' + madeCell(r.made) + '</td></tr>'; });
-    h += '</tbody><tfoot><tr><td>Total</td><td class="r num">' + cmpCell(d.total.bIn, d.total.bOut) + '</td><td class="r num">' + cmpCell(d.total.pIn, d.total.pOut) + '</td><td class="r num">' + madeCell(d.total.made) + '</td></tr></tfoot></table></div>';
+    var h = '<div class="tw"><table class="t cmp"><thead><tr><th>' + d.unit + '</th><th class="r">Business</th><th class="r">Personal</th><th class="r">Made / Lost</th><th class="r">Carried</th></tr></thead><tbody>';
+    d.rows.forEach(function (r) { h += '<tr><td>' + U.esc(r.short) + '</td><td class="r num">' + cmpCell(r.bIn, r.bOut) + '</td><td class="r num">' + cmpCell(r.pIn, r.pOut) + '</td><td class="r num">' + madeCell(r.made) + '</td><td class="r num">' + sg(r.close) + '</td></tr>'; });
+    h += '</tbody><tfoot><tr><td>Total</td><td class="r num">' + cmpCell(d.total.bIn, d.total.bOut) + '</td><td class="r num">' + cmpCell(d.total.pIn, d.total.pOut) + '</td><td class="r num">' + madeCell(d.total.made) + '</td><td class="r num">' + sg(d.total.close) + '</td></tr></tfoot></table></div>';
     return h;
   }
   function cmpChart(d) {
@@ -61,7 +73,7 @@
     if (st.cmpOpen) {
       h += '<p class="hint" style="margin:6px 0 10px">' + U.esc(d.title) + '</p>';
       if (!d.rows.length) h += '<p class="hint">No records to compare yet.</p>';
-      else h += cmpChart(d) + cmpTable(d) + '<p class="hint">Made / Lost is all money in minus all money out, savings and fees included.</p><button class="btn ghost block" data-act="cmpprint">Print comparison</button>';
+      else h += cmpChart(d) + cmpTable(d) + '<p class="hint">Made / Lost is all money in (M-Pesa and cash) minus all money out, savings and fees included. Carried is what was left at the end of that day.</p><button class="btn ghost block" data-act="cmpprint">Print comparison</button>';
     }
     return h + '</div>';
   }
@@ -69,9 +81,9 @@
     var d = A.compare(st.sumMode);
     function c(i, o) { return 'In ' + U.money2(i) + '<br>Out ' + U.money2(o); }
     return '<h1>Chil comparison: ' + U.esc(A.shopLabel()) + '</h1><p class="sub">' + U.esc(d.title) + ' · made ' + U.fmtDayYear(U.todayISO()) + '</p>' +
-      '<table><tr><th>' + d.unit + '</th><th class="n">Business</th><th class="n">Personal</th><th class="n">Made / Lost</th></tr>' +
+      '<table><tr><th>' + d.unit + '</th><th class="n">Business</th><th class="n">Personal</th><th class="n">Made / Lost</th><th class="n">Carried</th></tr>' +
       d.rows.map(function (r) { return '<tr><td>' + U.esc(r.label) + '</td><td class="n">' + c(r.bIn, r.bOut) + '</td><td class="n">' + c(r.pIn, r.pOut) + '</td><td class="n">' + U.money2(r.made) + '</td></tr>'; }).join('') +
-      '<tr><th>Total</th><th class="n">' + c(d.total.bIn, d.total.bOut) + '</th><th class="n">' + c(d.total.pIn, d.total.pOut) + '</th><th class="n">' + U.money2(d.total.made) + '</th></tr></table>' +
+      '<tr><th>Total</th><th class="n">' + c(d.total.bIn, d.total.bOut) + '</th><th class="n">' + c(d.total.pIn, d.total.pOut) + '</th><th class="n">' + U.money2(d.total.made) + '</th><th class="n">' + U.money2(d.total.close) + '</th></tr></table>' +
       '<p class="sub">Made / Lost = all money in minus all money out, including savings and fees.</p>';
   };
 
@@ -86,11 +98,15 @@
       else h += '<select class="sel" id="p-year">' + years().map(function (y) { return '<option' + (y === st.sumYear ? ' selected' : '') + '>' + y + '</option>'; }).join('') + '</select>';
       h += '<p class="hint" style="margin:8px 2px 12px"><b style="color:var(--ink)">' + U.esc(A.periodLabel()) + '</b> · ' + list.length + (list.length === 1 ? ' record' : ' records') + '</p>';
       if (!list.length) {
-        h += '<div class="empty"><b>No records for this ' + (st.sumMode === 'day' ? 'day' : st.sumMode) + '</b>Pick another date, or add your messages with the + button.</div>';
+        var pce = A.periodCash();
+        if (pce) h += '<div class="card"><h3>Cash and carry-forward</h3>' + cashRowsHTML(pce) + '</div>';
+        h += '<div class="empty"><b>No M-Pesa records for this ' + (st.sumMode === 'day' ? 'day' : st.sumMode) + '</b>Pick another date, or add your messages with the + button.</div>';
       } else {
         h += '<div class="tot four"><div><small>Money in</small><b class="pos num">' + U.money(sm.inn) + '</b></div><div><small>Spent</small><b class="neg num">' + U.money(sm.spent) + '</b></div>' +
           '<div><small>Saved</small><b class="num">' + U.money(sm.saved) + '</b></div><div><small>Left</small><b class="num ' + (sm.left < 0 ? 'neg' : 'pos') + '">' + U.money(sm.left) + '</b></div></div>';
         if (sm.untagged) h += '<div class="banner">' + sm.untagged + ' not tagged yet, so the split below is incomplete. <button data-act="tagged">Fix</button></div>';
+        var pcs = A.periodCash();
+        if (pcs) h += '<div class="card"><h3>Cash and carry-forward</h3>' + cashRowsHTML(pcs) + '<p class="hint" style="margin:6px 0 0">Closing = brought forward + M-Pesa in + cash in − M-Pesa out − cash used. It becomes the next day\'s brought forward.</p></div>';
         h += '<div class="card"><h3>Business and personal</h3><div class="split2"><div><small>Money in: Business</small><b class="num">' + U.money(sm.inBiz) + '</b></div><div><small>Money in: Personal</small><b class="num">' + U.money(sm.inPer) + '</b></div>' +
           '<div><small>Spent: Business</small><b class="num">' + U.money(sm.outBiz) + '</b></div><div><small>Spent: Personal</small><b class="num">' + U.money(sm.outPer) + '</b></div></div>' +
           (sm.inUn || sm.outUn ? '<p class="hint">Not tagged: in ' + U.money(sm.inUn) + ', out ' + U.money(sm.outUn) + '</p>' : '') +

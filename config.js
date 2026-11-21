@@ -1,10 +1,10 @@
 /* Chil settings. REQUIRE_ACTIVATION must stay true in the version you sell. */
 window.CHIL_CONFIG = {
   REQUIRE_ACTIVATION: true,
-  VERSION: '1.0.1',
+  VERSION: '1.0.2',
   // Shown on the activation and renewal screens. Fill these in before you start selling.
   SELLER_NAME: '',
-  SELLER_WHATSAPP: '',   // e.g. 254712345678 (no plus, no spaces)
+  SELLER_WHATSAPP: '254728983936',   // e.g. 254712345678 (no plus, no spaces)
   PAY_INSTRUCTIONS: '',  // e.g. Pay to M-Pesa Till 123456. 1 month Ksh 500, 3 months Ksh 1,350, 6 months Ksh 2,400, 12 months Ksh 4,200.
   WARN_DAYS: 7,          // show the "subscription ends soon" banner this many days before the end
   GRACE_DAYS: 1,         // extra days after the end date before the app locks
