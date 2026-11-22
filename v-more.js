@@ -221,6 +221,7 @@
       li(!dueToday && !overdue, (dueToday || overdue) ? 'Debts need attention' : 'No debts due', (dueToday ? dueToday + ' due today. ' : '') + (overdue ? overdue + ' owed to you overdue.' : (!dueToday ? 'Nothing is due today.' : '')), (dueToday || overdue) ? '<button class="btn small" data-x="debts">View</button>' : '') +
       '</ul><div class="card"><h3>Today</h3><div class="tot" style="margin:0"><div><small>In</small><b class="pos num">' + U.money(sm.inn) + '</b></div><div><small>Out</small><b class="neg num">' + U.money(sm.spent + sm.saved) + '</b></div><div><small>Left</small><b class="num">' + U.money(sm.left) + '</b></div></div></div>' +
       '<div style="flex:1"></div><button class="btn green block" data-x="close">Close shop</button><button class="btn ghost block" data-x="back" style="margin-top:10px">Not yet</button></div>';
+    A.nav.guard(); if (A.nav.ready) A.nav.push();
     A.screen('', h, function (root) {
       U.$$('[data-x]', root).forEach(function (b) {
         b.onclick = function () {
@@ -232,12 +233,23 @@
           if (x === 'close') {
             s.closedDate = today; S.commit('settings');
             A.screen('night', '<div class="pad">' + C.Logo.NIGHT + '<h1>It was fruitful today.</h1><p>Let\'s gather more tomorrow.</p><div class="gap"></div><button class="btn block" data-x="done" style="max-width:280px">Done</button></div>', function (r2) {
-              U.$('[data-x=done]', r2).onclick = function () { A.clearScreen(); A.go('money'); };
+              U.$('[data-x=done]', r2).onclick = function () { A.leaveApp(); };
             });
           }
         };
       });
     });
+  };
+
+  // Close the app as far as a web app can. If the phone will not let it close, show a calm "closed" page.
+  A.leaveApp = function () {
+    var d = A.nav.depth;
+    A.screen('night closed', '<div class="pad">' + C.Logo.NIGHT + '<h1>Shop closed</h1><p>Chil is closed. You can swipe it away now.</p><div class="gap"></div><button class="btn ghost block" data-x="reopen" style="max-width:280px">Open Chil again</button></div>', function (r) {
+      U.$('[data-x=reopen]', r).onclick = function () { location.reload(); };
+    });
+    A.nav.ready = false;
+    try { window.close(); } catch (e) { /* ignore */ }
+    try { history.go(-(d + 1)); } catch (e) { /* ignore */ }
   };
 
   /* ---------- monthly report ---------- */
@@ -280,8 +292,8 @@
       var a = A.debtTotals('owed'), b = A.debtTotals('owe');
       if (a.count || b.count) {
         L.push(''); L.push('*Debtors and creditors*');
-        L.push('Debtors (owe me): KSh ' + U.money(a.open) + (a.over ? ' (overdue ' + U.money(a.over) + ')' : ''));
-        L.push('Creditors (I owe): KSh ' + U.money(b.open) + (b.over ? ' (overdue ' + U.money(b.over) + ')' : ''));
+        L.push('Creditors (owe me): KSh ' + U.money(a.open) + (a.over ? ' (overdue ' + U.money(a.over) + ')' : ''));
+        L.push('Debtors (I owe): KSh ' + U.money(b.open) + (b.over ? ' (overdue ' + U.money(b.over) + ')' : ''));
       }
     }
     L.push(''); L.push('Sent from Chil. Your money, sorted.');

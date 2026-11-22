@@ -11,7 +11,7 @@
       var nc = Object.keys(names).length;
       return '<h1 class="page-title">More</h1>' +
         item('customers', 'people', 'Customers', nc ? nc + (nc === 1 ? ' person' : ' people') + ' ranked by what they spent' : 'Ranked by what they spent') +
-        item('debts', 'debt', 'Debtors and creditors', 'Owe you KSh ' + U.money(d.open) + ' · you owe KSh ' + U.money(c.open)) +
+        item('debts', 'debt', 'Debtors and creditors', 'Creditors owe you KSh ' + U.money(d.open) + ' · you owe debtors KSh ' + U.money(c.open)) +
         item('calc', 'calc', 'Calculator', 'Quick sums') +
         item('search', 'search', 'Search', 'Names, amounts, categories, codes') +
         item('more', 'gear', 'Settings', 'Shop, PIN, backup, subscription') +

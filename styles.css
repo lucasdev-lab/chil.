@@ -253,3 +253,12 @@ select.bzin{padding:4px;min-width:74px}
 .cust .rank{width:28px;height:28px;border-radius:50%;background:var(--o-l);color:var(--o-d);font-weight:800;display:grid;place-items:center;flex:none;font-size:13px}
 .cust:nth-child(1) .rank{background:var(--o);color:#fff}
 .cust .chev{color:var(--mute);font-size:12px}.cust-b{padding:0 12px 12px;border-top:1px solid var(--line)}
+
+tr.sel td,.cust.sel{background:#FFE6B8 !important}
+tr.sel td:first-child{box-shadow:inset 4px 0 0 var(--o)}
+.cust.sel{outline:2px solid var(--o)}
+tr.tx,.cust-h{-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+.selbar{position:fixed;top:0;left:0;right:0;z-index:60;display:flex;align-items:center;gap:8px;padding:10px 12px;background:#14201A;color:#fff;max-width:640px;margin:0 auto}
+.selbar .n{flex:1;font-weight:700}
+.selbar button{min-height:38px;border-radius:10px;border:1.5px solid rgba(255,255,255,.35);background:transparent;color:#fff;padding:0 14px;font-weight:700}
+.selbar button.pri{background:var(--o);border-color:var(--o)}

@@ -23,7 +23,7 @@
         (l.map(function (d, i) { var f = A.debtInfo(d); return '<tr><td>' + (i + 1) + '</td><td>' + U.fmtDayYear(d.date) + '</td><td>' + U.esc(d.name) + '</td><td>' + U.esc(d.desc || '') + '</td><td class="n">' + U.money2(d.amount) + '</td><td class="n">' + U.money2(f.paid) + '</td><td class="n">' + U.money2(f.bal) + '</td><td>' + (d.due ? U.fmtDayYear(d.due) : '') + '</td><td>' + f.label + '</td></tr>'; }).join('') || '<tr><td colspan="9">None</td></tr>') +
         '</table><p><b>Outstanding: ' + U.money2(t.open) + '</b> (overdue ' + U.money2(t.over) + ')</p>';
     }
-    return '<h1>Chil debtors and creditors: ' + U.esc(A.shopLabel()) + '</h1><p class="sub">Made ' + U.fmtDayYear(U.todayISO()) + '</p>' + tbl('owed', 'Debtors: people who owe me') + tbl('owe', 'Creditors: people I owe');
+    return '<h1>Chil debtors and creditors: ' + U.esc(A.shopLabel()) + '</h1><p class="sub">Made ' + U.fmtDayYear(U.todayISO()) + '</p>' + tbl('owed', 'Creditors: people who owe me') + tbl('owe', 'Debtors: people I owe');
   };
 
   function form(d, kind) {
@@ -32,8 +32,8 @@
     var k = d.kind;
     function body() {
       return '<h2>' + (isNew ? 'Add to the list' : 'Edit entry') + '</h2>' +
-        '<div class="chips" style="margin-top:8px"><button class="chip' + (k === 'owed' ? ' on' : '') + '" data-k="owed">Debtors</button><button class="chip' + (k === 'owe' ? ' on' : '') + '" data-k="owe">Creditors</button></div>' +
-        '<p class="hint">' + (k === 'owed' ? 'A debtor: someone took goods or money from you and will pay later.' : 'A creditor: you took stock or credit from a supplier and will pay later.') + '</p>' +
+        '<div class="chips" style="margin-top:8px"><button class="chip' + (k === 'owed' ? ' on' : '') + '" data-k="owed">Creditors</button><button class="chip' + (k === 'owe' ? ' on' : '') + '" data-k="owe">Debtors</button></div>' +
+        '<p class="hint">' + (k === 'owed' ? 'A creditor: someone took goods or money from you and will pay you later.' : 'A debtor: you took stock or credit from a supplier and you will pay later.') + '</p>' +
         '<label class="f">' + (k === 'owed' ? 'Who owes you?' : 'Who do you owe?') + '</label><input class="in" id="d-name" maxlength="60" placeholder="Name" value="' + U.esc(d.name) + '">' +
         '<label class="f">Description</label><input class="in" id="d-desc" maxlength="120" placeholder="e.g. 2 bags of sugar" value="' + U.esc(d.desc) + '">' +
         '<label class="f">Amount (KSh)</label><input class="in" id="d-amt" inputmode="decimal" placeholder="0" value="' + U.esc(d.amount) + '">' +
@@ -78,7 +78,7 @@
     var d = byId(id);
     if (!d) return;
     var i = A.debtInfo(d);
-    var h = '<h2>' + U.esc(d.name) + '</h2><p class="mute">' + (d.kind === 'owed' ? 'Debtor: owes you' : 'Creditor: you owe') + (d.desc ? ' · ' + U.esc(d.desc) : '') + '</p>' +
+    var h = '<h2>' + U.esc(d.name) + '</h2><p class="mute">' + (d.kind === 'owed' ? 'Creditor: owes you' : 'Debtor: you owe') + (d.desc ? ' · ' + U.esc(d.desc) : '') + '</p>' +
       '<div class="tot" style="margin-top:10px"><div><small>Amount</small><b class="num">' + U.money2(d.amount) + '</b></div><div><small>Paid</small><b class="num pos">' + U.money2(i.paid) + '</b></div><div><small>Balance</small><b class="num ' + (i.bal > 0 ? 'neg' : 'pos') + '">' + U.money2(i.bal) + '</b></div></div>' +
       '<p class="hint" style="margin:0 0 6px">Given ' + U.fmtDayYear(d.date) + (d.due ? ' · to be paid by ' + U.fmtDayYear(d.due) : '') + ' · <span class="pill ' + pillCls(i.key) + '">' + i.label + '</span></p>';
     if ((d.payments || []).length) {
@@ -122,10 +122,10 @@
     open: function (id) { if (st.tab !== 'debts') { st.tab = 'debts'; A.shell(); A.render(true); } detail(id); },
     html: function () {
       var kind = st.debtView, l = listFor(kind), t = A.debtTotals(kind), tt = A.debtTotals(kind === 'owed' ? 'owe' : 'owed');
-      var h = '<h1 class="page-title">Debtors and creditors</h1><div class="seg"><button data-v="owed" class="' + (kind === 'owed' ? 'on' : '') + '">Debtors</button><button data-v="owe" class="' + (kind === 'owe' ? 'on' : '') + '">Creditors</button></div>';
-      h += '<div class="tot four"><div><small>' + (kind === 'owed' ? 'Debtors still owe you' : 'Creditors you still owe') + '</small><b class="num ' + (kind === 'owed' ? 'pos' : 'neg') + '">' + U.money(t.open) + '</b></div><div><small>Overdue</small><b class="num ' + (t.over ? 'neg' : '') + '">' + U.money(t.over) + '</b></div></div>';
+      var h = '<h1 class="page-title">Debtors and creditors</h1><div class="seg"><button data-v="owed" class="' + (kind === 'owed' ? 'on' : '') + '">Creditors (owe me)</button><button data-v="owe" class="' + (kind === 'owe' ? 'on' : '') + '">Debtors (I owe)</button></div>';
+      h += '<div class="tot four"><div><small>' + (kind === 'owed' ? 'Creditors still owe you' : 'Debtors you still owe') + '</small><b class="num ' + (kind === 'owed' ? 'pos' : 'neg') + '">' + U.money(t.open) + '</b></div><div><small>Overdue</small><b class="num ' + (t.over ? 'neg' : '') + '">' + U.money(t.over) + '</b></div></div>';
       if (!l.length) {
-        h += '<div class="empty"><b>' + (kind === 'owed' ? 'You have no debtors' : 'You have no creditors') + '</b>Tap the button below to write one down with its date, pay date and description.</div>';
+        h += '<div class="empty"><b>' + (kind === 'owed' ? 'You have no creditors' : 'You have no debtors') + '</b>Tap the button below to write one down with its date, pay date and description.</div>';
       } else {
         h += '<div class="tw"><table class="t"><thead><tr><th>#</th><th>Date</th><th class="name">Name</th><th>Description</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Balance</th><th>Pay by</th><th>Status</th></tr></thead><tbody>';
         l.forEach(function (d, n) {
@@ -135,13 +135,22 @@
         });
         h += '</tbody><tfoot><tr><td colspan="4">Outstanding total</td><td></td><td></td><td class="r num">' + U.money2(t.open) + '</td><td colspan="2"></td></tr></tfoot></table></div>';
       }
-      h += '<button class="btn block" data-act="add">+ Add ' + (kind === 'owed' ? 'a debtor' : 'a creditor') + '</button>';
+      h += '<button class="btn block" data-act="add">+ Add ' + (kind === 'owed' ? 'a creditor' : 'a debtor') + '</button>';
       if (l.length) h += '<div class="row" style="margin-top:10px"><button class="btn ghost grow" data-act="pdf">PDF</button><button class="btn ghost grow" data-act="xls">Excel</button></div>';
       if (tt.open) h += '<p class="hint center">' + (kind === 'owed' ? 'You also owe suppliers ' : 'People also owe you ') + 'KSh ' + U.money(tt.open) + '.</p>';
       h += '<p class="hint center">Tap a row to record a payment, edit or delete.</p>';
       return h;
     },
     mount: function (root) {
+      A.select.set({
+        row: 'tr.tx[data-id]', id: function (el) { return el.getAttribute('data-id'); },
+        header: 'Type\tDate\tName\tDescription\tAmount\tPaid\tBalance\tPay by\tStatus',
+        text: function (el) {
+          var d = byId(el.getAttribute('data-id')); if (!d) return '';
+          var i = A.debtInfo(d);
+          return [d.kind === 'owed' ? 'Creditor (owes me)' : 'Debtor (I owe)', U.fmtDayYear(d.date), d.name, d.desc || '', U.money2(d.amount), U.money2(i.paid), U.money2(i.bal), d.due ? U.fmtDayYear(d.due) : '', i.label].join('\t');
+        }
+      });
       U.$$('[data-v]', root).forEach(function (b) { b.onclick = function () { st.debtView = b.getAttribute('data-v'); A.refresh(); }; });
       U.$$('tr.tx', root).forEach(function (r) { r.onclick = function () { detail(r.getAttribute('data-id')); }; });
       U.$$('[data-act]', root).forEach(function (b) {

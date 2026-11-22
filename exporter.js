@@ -22,7 +22,7 @@
       var rows = [['Type', 'Date given', 'Name', 'Description', 'Amount', 'Paid', 'Balance', 'Due date', 'Status']];
       list.forEach(function (d) {
         var paid = U.sum(d.payments || [], function (p) { return p.amount; });
-        rows.push([d.kind === 'owed' ? 'Debtor (owes me)' : 'Creditor (I owe)', d.date, d.name, d.desc || '', d.amount.toFixed(2), paid.toFixed(2),
+        rows.push([d.kind === 'owed' ? 'Creditor (owes me)' : 'Debtor (I owe)', d.date, d.name, d.desc || '', d.amount.toFixed(2), paid.toFixed(2),
           U.round2(d.amount - paid).toFixed(2), d.due || '', statusFn(d).label]);
       });
       return csv(rows);

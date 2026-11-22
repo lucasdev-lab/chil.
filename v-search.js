@@ -19,7 +19,7 @@
   function debtHay(d) {
     var i = A.debtInfo(d);
     return norm([d.name, d.desc, amounts(d.amount), amounts(i.bal), d.date, d.due, U.fmtDay(d.date), U.fmtDay(d.due), i.label,
-      d.kind === 'owed' ? 'debtor debtors owed to me debt customer' : 'creditor creditors i owe credit supplier'].join(' | '));
+      d.kind === 'owed' ? 'creditor creditors owed to me debt customer' : 'debtor debtors i owe credit supplier'].join(' | '));
   }
   function workHay(w) {
     return norm([w.item, w.date, U.fmtDay(w.date), amounts(+w.amount), w.kind === 'stock' ? 'stock bought' : 'expense cost', 'business'].join(' | '));
@@ -57,7 +57,7 @@
       h += '<div class="card"><h3>Debtors and creditors (' + r.debts.length + ')</h3>';
       r.debts.forEach(function (d) {
         var i = A.debtInfo(d);
-        h += '<div class="list-item" data-debt="' + d.id + '" style="cursor:pointer"><div class="grow"><b>' + U.esc(d.name) + '</b><small>' + (d.kind === 'owed' ? 'Debtor (owes me)' : 'Creditor (I owe)') + (d.desc ? ' · ' + U.esc(d.desc) : '') + (d.due ? ' · due ' + U.fmtDayYear(d.due) : '') + '</small></div>' +
+        h += '<div class="list-item" data-debt="' + d.id + '" style="cursor:pointer"><div class="grow"><b>' + U.esc(d.name) + '</b><small>' + (d.kind === 'owed' ? 'Creditor (owes me)' : 'Debtor (I owe)') + (d.desc ? ' · ' + U.esc(d.desc) : '') + (d.due ? ' · due ' + U.fmtDayYear(d.due) : '') + '</small></div>' +
           '<div class="right"><b class="num">' + U.money2(i.bal) + '</b><br><span class="pill ' + (i.key === 'over' ? 'bad' : i.key === 'paid' ? 'ok' : i.key === 'soon' ? 'warn' : '') + '">' + i.label + '</span></div></div>';
       });
       h += '</div>';

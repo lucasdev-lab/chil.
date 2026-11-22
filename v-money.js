@@ -119,6 +119,14 @@
       return h;
     },
     mount: function (root) {
+      A.select.set({
+        row: 'tr.tx[data-code]', id: function (el) { return el.getAttribute('data-code'); },
+        header: 'Date\tTime\tName\tType\tAmount\tCategory\tAccount\tCode',
+        text: function (el) {
+          var r = S.D.tx.filter(function (x) { return x.code === el.getAttribute('data-code'); })[0]; if (!r) return '';
+          return [U.fmtDayYear(r.date), U.time12(r.time), r.name || '', r.dir === 'in' ? 'Money in' : 'Money out', U.money2(r.amount), [r.bucket ? U.cap(r.bucket) : '', r.tag || ''].filter(Boolean).join(' / '), r.account || '', r.code].join('\t');
+        }
+      });
       var m = U.$('#m-month', root);
       if (m) m.onchange = function () { st.month = m.value; A.refresh(); };
       U.$$('[data-sim]', root).forEach(function (b) { b.onclick = function () { st.sim = +b.getAttribute('data-sim'); A.refresh(); }; });

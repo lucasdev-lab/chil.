@@ -16,7 +16,8 @@
   function start() {
     A.clearScreen();
     U.$('#app').classList.remove('hide');
-    A.go('money');
+    A.nav.start();
+    A.go('money', true);
   }
 
   function afterActivation() {

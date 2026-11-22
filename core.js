@@ -26,6 +26,7 @@
   A.sheet = function (html, mount) {
     var b = U.$('#sheet-body');
     b.innerHTML = html;
+    if (!U.$('#sheet').classList.contains('open') && A.nav) { A.nav.guard(); if (A.nav.ready) A.nav.push(); }
     U.$('#sheet').classList.add('open');
     U.$('#sheet .body').scrollTop = 0;
     if (mount) mount(b);
@@ -268,8 +269,34 @@
     });
   };
 
-  A.go = function (tab) {
+  /* ---------- Back button: close a pop-up, then go back a step, then Home, then ask before exiting ---------- */
+  var nav = A.nav = { depth: 0, ready: false };
+  nav.push = function () { try { history.pushState({ chil: 1, d: nav.depth + 1 }, ''); nav.depth++; } catch (e) { /* ignore */ } };
+  nav.guard = function () { if (nav.ready && nav.depth === 0) nav.push(); };
+  nav.start = function () {
+    if (nav.ready) return;
+    nav.ready = true;
+    try { history.replaceState({ chil: 1, d: 0 }, ''); } catch (e) { /* ignore */ }
+    document.addEventListener('pointerdown', nav.guard, true);
+    window.addEventListener('popstate', function (e) {
+      if (!nav.ready) return;
+      nav.depth = e.state && typeof e.state.d === 'number' ? e.state.d : 0;
+      if (A.select && A.select.active()) { A.select.clear(); return; }
+      if (U.$('#sheet').classList.contains('open')) { A.closeSheet(); return; }
+      var scr = U.$('#screen-host .screen');
+      if (scr && scr.querySelector('[data-x=back]')) { A.clearScreen(); return; }
+      if (!scr && A.st.tab !== 'money') { A.go(A.backTarget(), true); return; }
+      if (nav.depth > 0) { history.go(-nav.depth); return; } // clear leftover steps, then ask
+      U.toast('Press back again to exit');
+    });
+  };
+  A.MORE_SUB = ['customers', 'debts', 'calc', 'search', 'more'];
+  A.backTarget = function () { return A.MORE_SUB.indexOf(A.st.tab) >= 0 && A.st.from === 'menu' ? 'menu' : 'money'; };
+  A.go = function (tab, silent) {
+    var prev = A.st.tab;
+    A.st.from = prev === 'menu' ? 'menu' : null;
     A.st.tab = tab;
+    if (!silent && prev === 'money' && tab !== 'money') { nav.guard(); if (nav.ready) nav.push(); }
     A.shell();
     A.render(true);
   };
@@ -279,6 +306,7 @@
     if (!main) return;
     var y = top ? 0 : main.scrollTop;
     var v = A.V[A.st.tab];
+    if (A.select) A.select.before(A.st.tab);
     main.innerHTML = v.html();
     if (v.mount) v.mount(main);
     main.scrollTop = y;
