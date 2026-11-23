@@ -138,7 +138,7 @@
             if (!list.length) { U.toast('Nothing to save for this period.'); return; }
           }
           if (a === 'pdf') Ex.print(A.summaryPrintHTML(), 'Chil ' + A.periodLabel());
-          if (a === 'xls') U.download('Chil-' + A.periodLabel().replace(/[^A-Za-z0-9]+/g, '-') + '.csv', Ex.txCSV(list, S.D.settings.simNames), 'text/csv;charset=utf-8');
+          if (a === 'xls') U.download('Chil-' + A.periodLabel().replace(/[^A-Za-z0-9]+/g, '-') + '.xlsx', Ex.txXLSX(list, S.D.settings.simNames, 'Money'), C.Xlsx.MIME);
         };
       });
     }

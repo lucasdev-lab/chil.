@@ -1,8 +1,8 @@
 /* Chil service worker: makes the app open with no internet. */
-var CACHE = 'chil-v1.0.3';
+var CACHE = 'chil-v1.0.5';
 var FILES = ['./', 'index.html', 'manifest.webmanifest', 'styles.css',
   'config.js', 'util.js', 'logo.js', 'store.js', 'parser.js', 'calc.js', 'activation.js', 'exporter.js',
-  'core.js', 'v-money.js', 'v-summary.js', 'v-biz.js', 'v-calc.js', 'v-debts.js', 'v-customers.js', 'select.js', 'v-menu.js', 'v-search.js', 'v-more.js', 'app.js',
+  'core.js', 'v-money.js', 'v-summary.js', 'v-biz.js', 'v-calc.js', 'v-debts.js', 'v-customers.js', 'select.js', 'xlsx.js', 'v-menu.js', 'v-spend.js', 'v-help.js', 'policy.js', 'v-search.js', 'v-more.js', 'app.js',
   'icon-192.png', 'icon-512.png', 'maskable-512.png', 'apple-touch-icon.png'];
 
 self.addEventListener('install', function (e) {

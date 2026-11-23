@@ -18,6 +18,33 @@
       });
       return csv(rows);
     },
+    // Real Excel files (.xlsx): real dates, numbers, wide columns.
+    txXLSX: function (list, simNames, title) {
+      var X = C.Xlsx, rows = [['Date', 'Time', 'SIM', 'Name', 'Money in', 'Money out', 'Fee', 'Counted as', 'Category', 'Account', 'Balance', 'M-Pesa code']], ti = 0, to = 0;
+      list.slice().sort(function (a, b) { return a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0; }).forEach(function (r) {
+        if (r.dir === 'in') ti += r.amount; if (r.dir === 'out') to += r.amount + (r.fee || 0);
+        rows.push([{ d: r.date }, r.time, (simNames && simNames[r.sim]) || 'SIM ' + r.sim, r.name,
+          r.dir === 'in' ? { m: r.amount } : '', r.dir === 'out' ? { m: r.amount } : (r.dir === 'own' ? '(own money ' + r.amount.toFixed(2) + ')' : ''),
+          r.fee ? { m: r.fee } : '', r.bucket ? U.cap(r.bucket) : '', r.tag || '', r.account, r.balance != null ? { m: r.balance } : '', r.code]);
+      });
+      rows.push([]); rows.push([{ b: 'TOTAL' }, '', '', '', { bm: U.round2(ti) }, { bm: U.round2(to) }]);
+      return X.build([{ name: title || 'Money', cols: [14, 10, 10, 30, 14, 14, 10, 13, 18, 12, 14, 14], rows: rows }]);
+    },
+    // Two separate sheets: people who owe me (Creditors) and people I owe (Debtors).
+    debtsXLSX: function (list, statusFn) {
+      var X = C.Xlsx;
+      function sheet(kind, name) {
+        var rows = [['Date given', 'Name', 'Description', 'Amount', 'Paid', 'Balance', 'Due date', 'Status']], ta = 0, tp = 0, tb = 0;
+        list.filter(function (d) { return d.kind === kind; }).sort(function (a, b) { return a.date < b.date ? -1 : 1; }).forEach(function (d) {
+          var paid = U.sum(d.payments || [], function (p) { return p.amount; }), bal = U.round2(d.amount - paid);
+          ta += d.amount; tp += paid; tb += bal;
+          rows.push([{ d: d.date }, d.name, d.desc || '', { m: d.amount }, { m: paid }, { m: bal }, d.due ? { d: d.due } : '', statusFn(d).label]);
+        });
+        rows.push([]); rows.push([{ b: 'TOTAL' }, '', '', { bm: U.round2(ta) }, { bm: U.round2(tp) }, { bm: U.round2(tb) }]);
+        return { name: name, cols: [14, 28, 30, 14, 14, 14, 14, 14], rows: rows };
+      }
+      return X.build([sheet('owed', 'Creditors (owe me)'), sheet('owe', 'Debtors (I owe)')]);
+    },
     debtsCSV: function (list, statusFn) {
       var rows = [['Type', 'Date given', 'Name', 'Description', 'Amount', 'Paid', 'Balance', 'Due date', 'Status']];
       list.forEach(function (d) {

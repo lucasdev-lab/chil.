@@ -190,7 +190,7 @@
       var isSav = tag && U.key(tag) === 'savings';
       if (r.dir === 'in' && !sel.bucket) { err.textContent = 'Please choose Business or Personal.'; return; }
       if (r.dir === 'out' && !isSav && !sel.bucket) { err.textContent = 'Please choose Business or Personal.'; return; }
-      if (r.dir === 'out' && !tag) { err.textContent = 'Please choose a category or type your own.'; return; }
+      if (!tag) { err.textContent = 'Please choose a category or type your own.'; return; }
       if (custom) { var found = A.allTags(r.dir).filter(function (t) { return U.key(t) === U.key(custom); })[0]; tag = found || custom; if (!found) A.rememberTag(custom); }
       r.bucket = sel.bucket || r.bucket || null; r.tag = tag; delete r.auto;
       if (ruleOn) {

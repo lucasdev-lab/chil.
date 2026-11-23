@@ -339,7 +339,7 @@
         U.$('#r-file', b).onclick = function () {
           var list = A.inPeriod('month', mk);
           if (!list.length) { U.toast('No records in that month.'); return; }
-          Ex.shareFile('Chil-' + mk + '.csv', Ex.txCSV(list, s.simNames), 'text/csv').then(function (r) { if (r === 'downloaded') U.toast('File downloaded'); });
+          Ex.shareFile('Chil-' + mk + '.xlsx', Ex.txXLSX(list, s.simNames, 'Money'), C.Xlsx.MIME).then(function (r) { if (r === 'downloaded') U.toast('File downloaded'); });
         };
         U.$('#r-copy', b).onclick = function () { try { navigator.clipboard.writeText(plain); U.toast('Copied'); } catch (e) { U.toast('Could not copy'); } };
       });
@@ -395,7 +395,7 @@
       '<div class="row"><button class="btn grow" id="s-bk">Save backup</button><button class="btn ghost grow" id="s-rs">Restore</button></div><input type="file" id="s-file" accept=".json,application/json" class="hide"></div>';
     h += A.subCardHTML();
     h += A.helpBanner();
-    h += '<div class="card"><h3>About</h3><div class="list-item"><span>Version</span><b>' + window.CHIL_CONFIG.VERSION + '</b></div><div class="list-item"><span>Device ID</span><b class="num">' + Act.shownId() + '</b></div>' +
+    h += '<div class="card"><h3>About</h3><div class="list-item"><span>Privacy policy</span><button class="btn small ghost" id="s-priv">Read</button></div><div class="list-item"><span>Version</span><b>' + window.CHIL_CONFIG.VERSION + '</b></div><div class="list-item"><span>Device ID</span><b class="num">' + Act.shownId() + '</b></div>' +
       '<p class="hint">Chil works offline. Nothing is sent anywhere unless you press WhatsApp, Email or Share.</p><button class="btn ghost block" id="s-wipe" style="color:var(--red);margin-top:6px">Erase all data on this phone</button></div>';
     return h;
   };
@@ -441,6 +441,7 @@
     });
     U.$('#s-addr', root).onclick = function () { addRecipient(function () { A.closeSheet(); A.refresh(); }); };
     U.$('#s-rep', root).onclick = function () { A.V.more.reportSheet(); };
+    var sp = U.$('#s-priv', root); if (sp) sp.onclick = function () { A.privacy.show(); };
     var sc = U.$('#s-code', root); if (sc) sc.onclick = function () { A.codeSheet(); };
     U.$('#s-pin', root).onclick = function () { pinSheet(); };
     var po = U.$('#s-pinoff', root);

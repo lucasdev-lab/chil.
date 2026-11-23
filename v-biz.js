@@ -254,13 +254,13 @@
       '<button class="btn green block" id="bs-print">Print or save balance sheet (PDF)</button></div>';
     return h;
   }
-  function bizCSV() {
-    function cell(v) { v = v == null ? '' : String(v); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
-    var rows = [['Date', 'Type', 'Item', 'Amount']];
+  function bizXLSX() {
+    var rows = [['Date', 'Type', 'Item', 'Amount']], t = 0;
     rowsInView().slice().sort(function (a, b) { return a.date < b.date ? -1 : a.date > b.date ? 1 : 0; }).forEach(function (r) {
-      rows.push([r.date, r.kind === 'stock' ? 'Stock' : 'Expense', r.item || '', amt(r).toFixed(2)]);
+      rows.push([{ d: r.date }, r.kind === 'stock' ? 'Stock' : 'Expense', r.item || '', { m: amt(r) }]); t += amt(r);
     });
-    return '﻿' + rows.map(function (r) { return r.map(cell).join(','); }).join('\r\n') + '\r\n';
+    rows.push([]); rows.push([{ b: 'TOTAL' }, '', '', { bm: U.round2(t) }]);
+    return C.Xlsx.build([{ name: 'Business rows', cols: [14, 12, 32, 14], rows: rows }]);
   }
 
   A.V.biz = {
@@ -307,7 +307,7 @@
       bindBS(root);
       U.$('#b-print', root).onclick = function () { Ex.print(A.bizPrintHTML(), 'Chil business report'); };
       var xl = U.$('#b-xls', root);
-      if (xl) xl.onclick = function () { U.download('Chil-business-' + (st.bizMonth === 'all' ? 'all-time' : st.bizMonth) + '.csv', bizCSV(), 'text/csv;charset=utf-8'); };
+      if (xl) xl.onclick = function () { U.download('Chil-business-' + (st.bizMonth === 'all' ? 'all-time' : st.bizMonth) + '.xlsx', bizXLSX(), C.Xlsx.MIME); };
       bindRows(root);
     }
   };

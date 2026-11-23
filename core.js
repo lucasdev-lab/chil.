@@ -17,6 +17,8 @@
     calc: ic('<rect x="5" y="3" width="14" height="18" rx="2"/><path d="M8 7h8M8 12h2M14 12h2M8 16h2M14 16h2"/>'),
     debt: ic('<path d="M4 4h16v16H4zM4 10h16M10 4v16"/>'),
     more: ic('<circle cx="5" cy="12" r="1.6"/><circle cx="12" cy="12" r="1.6"/><circle cx="19" cy="12" r="1.6"/>'),
+    spend: ic('<path d="M12 3v12M7 10l5 5 5-5M4 20h16"/>'),
+    help: ic('<circle cx="12" cy="12" r="9"/><path d="M9.5 9.5a2.5 2.5 0 1 1 3.5 2.3c-.7.4-1 .9-1 1.7M12 17h.01"/>'),
     people: ic('<circle cx="9" cy="8" r="3.2"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6M16 5.2a3.2 3.2 0 0 1 0 5.6M18 14.3c1.8.8 3 2.6 3 4.7"/>'),
     search: ic('<circle cx="11" cy="11" r="7"/><path d="M20 20l-3.5-3.5"/>'),
     gear: ic('<circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .3 1.8l.1.1a2 2 0 1 1-2.8 2.8l-.1-.1a1.7 1.7 0 0 0-1.8-.3 1.7 1.7 0 0 0-1 1.5V21a2 2 0 1 1-4 0v-.1a1.7 1.7 0 0 0-1.1-1.5 1.7 1.7 0 0 0-1.8.3l-.1.1a2 2 0 1 1-2.8-2.8l.1-.1a1.7 1.7 0 0 0 .3-1.8 1.7 1.7 0 0 0-1.5-1H3a2 2 0 1 1 0-4h.1a1.7 1.7 0 0 0 1.5-1.1 1.7 1.7 0 0 0-.3-1.8l-.1-.1a2 2 0 1 1 2.8-2.8l.1.1a1.7 1.7 0 0 0 1.8.3H9a1.7 1.7 0 0 0 1-1.5V3a2 2 0 1 1 4 0v.1a1.7 1.7 0 0 0 1 1.5 1.7 1.7 0 0 0 1.8-.3l.1-.1a2 2 0 1 1 2.8 2.8l-.1.1a1.7 1.7 0 0 0-.3 1.8V9a1.7 1.7 0 0 0 1.5 1H21a2 2 0 1 1 0 4h-.1a1.7 1.7 0 0 0-1.5 1z"/>')
@@ -59,7 +61,7 @@
   // Does the record still need the owner's attention?
   A.needsTag = function (r) {
     if (r.dir === 'own') return false;
-    if (r.dir === 'in') return !r.bucket;
+    if (r.dir === 'in') return !r.bucket || !r.tag;
     if (r.tag === 'Savings') return false;
     return !r.bucket || !r.tag;
   };
@@ -247,7 +249,7 @@
 
   /* ---------- rendering ---------- */
   var NAV = [['money', 'Money', 'money'], ['sum', 'Summary', 'sum'], ['add', 'Add', 'plus'], ['biz', 'Business', 'biz'], ['menu', 'More', 'more']];
-  var MORE_TABS = ['menu', 'customers', 'debts', 'calc', 'search', 'more'];
+  var MORE_TABS = ['menu', 'customers', 'debts', 'spend', 'calc', 'search', 'help', 'more'];
 
   A.shell = function () {
     var s = S.D.settings;
@@ -290,7 +292,7 @@
       U.toast('Press back again to exit');
     });
   };
-  A.MORE_SUB = ['customers', 'debts', 'calc', 'search', 'more'];
+  A.MORE_SUB = ['customers', 'debts', 'spend', 'calc', 'search', 'help', 'more'];
   A.backTarget = function () { return A.MORE_SUB.indexOf(A.st.tab) >= 0 && A.st.from === 'menu' ? 'menu' : 'money'; };
   A.go = function (tab, silent) {
     var prev = A.st.tab;

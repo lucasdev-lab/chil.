@@ -158,7 +158,7 @@
           var a = b.getAttribute('data-act');
           if (a === 'add') form(null, st.debtView);
           if (a === 'pdf') Ex.print(A.debtsPrintHTML(), 'Chil debts and credits');
-          if (a === 'xls') U.download('Chil-debts-' + U.todayISO() + '.csv', Ex.debtsCSV(S.D.debts.slice().sort(function (a, b) { return a.kind < b.kind ? 1 : -1; }), A.debtInfo), 'text/csv;charset=utf-8');
+          if (a === 'xls') U.download('Chil-debtors-creditors-' + U.todayISO() + '.xlsx', Ex.debtsXLSX(S.D.debts, A.debtInfo), C.Xlsx.MIME);
         };
       });
     }

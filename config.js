@@ -1,7 +1,7 @@
 /* Chil settings. REQUIRE_ACTIVATION must stay true in the version you sell. */
 window.CHIL_CONFIG = {
   REQUIRE_ACTIVATION: true,
-  VERSION: '1.0.3',
+  VERSION: '1.0.5',
   // Shown on the activation and renewal screens. Fill these in before you start selling.
   SELLER_NAME: '',
   SELLER_WHATSAPP: '254728983936',   // e.g. 254712345678 (no plus, no spaces)

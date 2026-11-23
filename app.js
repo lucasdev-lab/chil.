@@ -42,6 +42,7 @@
       var sub = Act.state();
       var left = 1500 - (Date.now() - t0);
       if (left > 0) await wait(left);
+      if (!A.privacy.accepted()) { A.privacy.screen(function () { var k = Act.state(); if (k.kind === 'none') A.activationScreen(afterActivation); else if (k.kind === 'blocked' || k.kind === 'clock' || k.kind === 'expired') A.subLock(k); else afterActivation(); }); return; }
       if (sub.kind === 'none') { A.activationScreen(afterActivation); return; }
       if (sub.kind === 'blocked' || sub.kind === 'clock' || sub.kind === 'expired') { A.subLock(sub); return; }
       afterActivation();

@@ -12,8 +12,10 @@
       return '<h1 class="page-title">More</h1>' +
         item('customers', 'people', 'Customers', nc ? nc + (nc === 1 ? ' person' : ' people') + ' ranked by what they spent' : 'Ranked by what they spent') +
         item('debts', 'debt', 'Debtors and creditors', 'Creditors owe you KSh ' + U.money(d.open) + ' · you owe debtors KSh ' + U.money(c.open)) +
+        item('spend', 'spend', 'Expenditure', 'All your money out, by category') +
         item('calc', 'calc', 'Calculator', 'Quick sums') +
         item('search', 'search', 'Search', 'Names, amounts, categories, codes') +
+        item('help', 'help', 'Help and FAQ', 'Guide, answers, quiz') +
         item('more', 'gear', 'Settings', 'Shop, PIN, backup, subscription') +
         '<div class="gap"></div>' + (A.helpBanner ? A.helpBanner() : '');
     },

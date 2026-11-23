@@ -32,7 +32,7 @@
   }
 
   /* ---------- reports: per customer, or all customers grouped by customer ---------- */
-  function cat(r) { return r.tag || 'Untagged'; }
+  function cat(r) { return r.tag || 'No category'; }
   function sums(rows) {
     var m = {}, tot = 0;
     rows.forEach(function (r) { var k = cat(r); (m[k] = m[k] || { n: 0, t: 0 }); m[k].n++; m[k].t += r.amount; tot += r.amount; });
@@ -62,23 +62,27 @@
     }
     return h;
   };
-  A.customerReportCSV = function (cs) {
-    function cell(v) { v = v == null ? '' : String(v); return /[",\r\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; }
-    var out = [['Date', 'Customer', 'Category', 'Amount']], all = [];
+  A.customerReportXLSX = function (cs) {
+    var X = C.Xlsx, rows = [['Date', 'Customer', 'Category', 'Amount']], all = [], per = [['Customer', 'Payments', 'Total spent']];
     cs.forEach(function (c) {
-      var rows = sorted(c), sm = sums(rows);
-      rows.forEach(function (r) { out.push([r.date, c.name, cat(r), r.amount.toFixed(2)]); all.push(r); });
-      sm.cats.forEach(function (x) { out.push(['', c.name, 'Total ' + x.cat, x.total.toFixed(2)]); });
-      out.push(['', c.name, 'TOTAL', sm.total.toFixed(2)]); out.push([]);
+      var rs = sorted(c), sm = sums(rs);
+      rs.forEach(function (r) { rows.push([{ d: r.date }, c.name, cat(r), { m: r.amount }]); all.push(r); });
+      sm.cats.forEach(function (x) { rows.push(['', { b: c.name }, { b: 'Total ' + x.cat }, { bm: x.total }]); });
+      rows.push(['', { b: c.name }, { b: 'TOTAL' }, { bm: sm.total }]); rows.push([]);
+      per.push([c.name, rs.length, { m: sm.total }]);
     });
+    var sheets = [{ name: cs.length === 1 ? cs[0].name : 'All customers', cols: [14, 30, 22, 14], rows: rows }];
     if (cs.length > 1) {
       var sa = sums(all);
-      sa.cats.forEach(function (x) { out.push(['', 'ALL CUSTOMERS', 'Total ' + x.cat, x.total.toFixed(2)]); });
-      out.push(['', 'ALL CUSTOMERS', 'GRAND TOTAL', sa.total.toFixed(2)]);
+      rows.push([{ b: 'ALL CUSTOMERS' }]);
+      sa.cats.forEach(function (x) { rows.push(['', { b: 'ALL CUSTOMERS' }, { b: 'Total ' + x.cat }, { bm: x.total }]); });
+      rows.push(['', { b: 'ALL CUSTOMERS' }, { b: 'GRAND TOTAL' }, { bm: sa.total }]);
+      per.push([]); per.push([{ b: 'GRAND TOTAL' }, all.length, { bm: sa.total }]);
+      sheets.push({ name: 'By customer', cols: [32, 12, 16], rows: per });
     }
-    return '\ufeff' + out.map(function (r) { return r.map(cell).join(','); }).join('\r\n') + '\r\n';
+    return X.build(sheets);
   };
-  function fileName(cs, ext) { return 'Chil-' + (cs.length === 1 ? 'customer-' + U.key(cs[0].name).replace(/\s+/g, '-') : 'all-customers') + '-' + (st.custMonth === 'all' ? 'all-time' : st.custMonth) + '.' + ext; }
+  function fileName(cs) { return 'Chil-' + (cs.length === 1 ? 'customer-' + U.key(cs[0].name).replace(/\s+/g, '-') : 'all-customers') + '-' + (st.custMonth === 'all' ? 'all-time' : st.custMonth) + '.xlsx'; }
 
   function rowHTML(c, i) {
     var open = !!st.custOpen[c.key];
@@ -122,9 +126,9 @@
       U.$$('.cust-h', root).forEach(function (h) { h.onclick = function () { var k = h.parentNode.getAttribute('data-k'); st.custOpen[k] = !st.custOpen[k]; A.refresh(); }; });
       function byKey(k) { return list(false).concat(list(true)).filter(function (c) { return c.key === k; })[0]; }
       U.$('#cu-rep', root).onclick = function () { C.Export.print(A.customerReportHTML(list(false)), 'Chil customers report'); };
-      U.$('#cu-xls', root).onclick = function () { var cs = list(false); U.download(fileName(cs, 'csv'), A.customerReportCSV(cs), 'text/csv;charset=utf-8'); };
+      U.$('#cu-xls', root).onclick = function () { var cs = list(false); U.download(fileName(cs), A.customerReportXLSX(cs), C.Xlsx.MIME); };
       U.$$('[data-rep]', root).forEach(function (b) { b.onclick = function () { var c = byKey(b.getAttribute('data-rep')); if (c) C.Export.print(A.customerReportHTML([c]), 'Chil customer report'); }; });
-      U.$$('[data-xls]', root).forEach(function (b) { b.onclick = function () { var c = byKey(b.getAttribute('data-xls')); if (c) U.download(fileName([c], 'csv'), A.customerReportCSV([c]), 'text/csv;charset=utf-8'); }; });
+      U.$$('[data-xls]', root).forEach(function (b) { b.onclick = function () { var c = byKey(b.getAttribute('data-xls')); if (c) U.download(fileName([c]), A.customerReportXLSX([c]), C.Xlsx.MIME); }; });
       U.$$('[data-hide]', root).forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-hide'); var hid = S.D.settings.hidden || (S.D.settings.hidden = []); if (hid.indexOf(k) < 0) hid.push(k); S.commit('settings'); A.refresh(); }; });
       U.$$('[data-show]', root).forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-show'); S.D.settings.hidden = (S.D.settings.hidden || []).filter(function (x) { return x !== k; }); S.commit('settings'); A.refresh(); }; });
     }
