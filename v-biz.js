@@ -105,7 +105,7 @@
   function debtOpenAt(kind, date) {
     var t = 0;
     S.D.debts.forEach(function (d) {
-      if (d.kind !== kind || d.date > date) return;
+      if (d.kind !== kind || d.date > date || d.src !== 'mpesa') return;
       var paid = U.sum(d.payments || [], function (p) { return p.date <= date ? p.amount : 0; });
       var b = d.amount - paid; if (b > 0) t += b;
     });

@@ -54,7 +54,7 @@
       var changed = false;
       if (ru.bucket && (r.auto || !r.bucket)) { r.bucket = ru.bucket; delete r.auto; changed = true; }
       if (!r.tag && ru.tag) { r.tag = ru.tag; changed = true; }
-      if (changed) n++;
+      if (changed) { n++; if (r.tag && U.key(r.tag) === 'business debt') A.syncLoan(r); }
     });
     return n;
   };
@@ -234,6 +234,18 @@
     }
     return out;
   };
+  // Loans made from M-Pesa rows tagged "Business debt": money in = a loan I received (I owe: Debtors),
+  // money out = a loan I gave (they owe me: Creditors). Kept in step with the row's tag.
+  A.syncLoan = function (r) {
+    var want = r && r.tag && U.key(r.tag) === 'business debt' && (r.dir === 'in' || r.dir === 'out');
+    var i, cur = null;
+    for (i = 0; i < S.D.debts.length; i++) if (S.D.debts[i].src === 'mpesa' && S.D.debts[i].code === r.code) { cur = S.D.debts[i]; break; }
+    if (!want) { if (cur && !(cur.payments || []).length) S.D.debts.splice(i, 1); S.commit('debts'); return; }
+    var kind = r.dir === 'in' ? 'owe' : 'owed';
+    if (cur) { cur.kind = kind; cur.name = r.name || 'Loan'; cur.amount = r.amount; cur.date = r.date; }
+    else S.D.debts.push({ id: U.uid(), kind: kind, name: r.name || 'Loan', desc: 'Loan (from M-Pesa)', amount: r.amount, date: r.date, due: '', payments: [], src: 'mpesa', code: r.code });
+    S.commit('debts');
+  };
   A.debtTotals = function (kind) {
     var t = { open: 0, over: 0, count: 0 };
     S.D.debts.forEach(function (d) {
@@ -289,7 +301,7 @@
       if (scr && scr.querySelector('[data-x=back]')) { A.clearScreen(); return; }
       if (!scr && A.st.tab !== 'money') { A.go(A.backTarget(), true); return; }
       if (nav.depth > 0) { history.go(-nav.depth); return; } // clear leftover steps, then ask
-      U.toast('Press back again to exit');
+      U.toast('Press back again to exit', 2200, 'exit');
     });
   };
   A.MORE_SUB = ['customers', 'debts', 'spend', 'calc', 'search', 'help', 'more'];
@@ -298,6 +310,7 @@
     var prev = A.st.tab;
     A.st.from = prev === 'menu' ? 'menu' : null;
     A.st.tab = tab;
+    try { sessionStorage.setItem('chil.last', tab); } catch (e) { /* ignore */ }
     if (!silent && prev === 'money' && tab !== 'money') { nav.guard(); if (nav.ready) nav.push(); }
     A.shell();
     A.render(true);

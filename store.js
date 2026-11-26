@@ -130,8 +130,8 @@
       Store.init();
     },
     // Tags the user can pick from.
-    IN_TAGS: ['Sales', 'Refund', 'Gift', 'Loan repaid', 'Other'],
-    OUT_TAGS: ['Food', 'Transport', 'Stock', 'Savings', 'Rent', 'Airtime', 'Family', 'School fees', 'Utilities', 'Other']
+    IN_TAGS: ['Sales', 'Refund', 'Gift', 'Loan repaid', 'Business debt', 'Other'],
+    OUT_TAGS: ['Food', 'Transport', 'Stock', 'Savings', 'Rent', 'Airtime', 'Family', 'School fees', 'Utilities', 'Business debt', 'Other']
   };
   C.Store = Store;
 })();

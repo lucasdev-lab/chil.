@@ -130,7 +130,7 @@
         h += '<div class="tw"><table class="t"><thead><tr><th>#</th><th>Date</th><th class="name">Name</th><th>Description</th><th class="r">Amount</th><th class="r">Paid</th><th class="r">Balance</th><th>Pay by</th><th>Status</th></tr></thead><tbody>';
         l.forEach(function (d, n) {
           var i = A.debtInfo(d);
-          h += '<tr class="tx" data-id="' + d.id + '"><td class="mute">' + (n + 1) + '</td><td>' + U.fmtDay(d.date) + '</td><td class="name"><b>' + U.esc(d.name) + '</b></td><td class="desc">' + U.esc(d.desc || '') + '</td>' +
+          h += '<tr class="tx" data-id="' + d.id + '"><td class="mute">' + (n + 1) + '</td><td>' + U.fmtDay(d.date) + '</td><td class="name"><b>' + U.esc(d.name) + '</b></td><td class="desc">' + U.esc(d.desc || '') + (d.src === 'mpesa' ? ' <span class="dbadge">M-Pesa loan</span>' : ' <span class="dbadge man">not counted</span>') + '</td>' +
             '<td class="r num">' + U.money2(d.amount) + '</td><td class="r num">' + U.money2(i.paid) + '</td><td class="r num"><b>' + U.money2(i.bal) + '</b></td><td>' + (d.due ? U.fmtDayYear(d.due) : '<span class="mute">—</span>') + '</td><td><span class="pill ' + pillCls(i.key) + '">' + i.label + '</span></td></tr>';
         });
         h += '</tbody><tfoot><tr><td colspan="4">Outstanding total</td><td></td><td></td><td class="r num">' + U.money2(t.open) + '</td><td colspan="2"></td></tr></tfoot></table></div>';
@@ -138,7 +138,7 @@
       h += '<button class="btn block" data-act="add">+ Add ' + (kind === 'owed' ? 'a creditor' : 'a debtor') + '</button>';
       if (l.length) h += '<div class="row" style="margin-top:10px"><button class="btn ghost grow" data-act="pdf">PDF</button><button class="btn ghost grow" data-act="xls">Excel</button></div>';
       if (tt.open) h += '<p class="hint center">' + (kind === 'owed' ? 'You also owe suppliers ' : 'People also owe you ') + 'KSh ' + U.money(tt.open) + '.</p>';
-      h += '<p class="hint center">Tap a row to record a payment, edit or delete.</p>';
+      h += '<p class="hint center">Tap a row to record a payment, edit or delete. Only loans from M-Pesa (tagged Business debt) count in your balance sheet. Entries you type yourself do not.</p>';
       return h;
     },
     mount: function (root) {

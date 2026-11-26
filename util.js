@@ -84,10 +84,12 @@
     setTimeout(function () { URL.revokeObjectURL(url); a.remove(); }, 1500);
   };
 
-  U.toast = function (msg, ms) {
+  U.toast = function (msg, ms, kind) {
     var el = document.getElementById('toast');
     if (!el) return;
-    el.textContent = msg;
+    el.className = kind ? kind : '';
+    if (kind === 'exit') el.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 4H5v16h4M16 8l4 4-4 4M20 12H9"/></svg><span></span>', el.lastChild.textContent = msg;
+    else el.textContent = msg;
     el.classList.add('show');
     clearTimeout(U._t);
     U._t = setTimeout(function () { el.classList.remove('show'); }, ms || 2600);

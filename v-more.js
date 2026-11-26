@@ -157,6 +157,21 @@
       });
   };
 
+  // Counts messages read today. Over the plan's daily limit: a gentle notice, never a lock.
+  A.fairUse = function (n) {
+    var lim = Act.dailyLimit(); if (!lim || !n) return;
+    var KEY = 'chil.cnt', c = {}, today = U.todayISO();
+    try { c = JSON.parse(localStorage.getItem(KEY) || '{}') || {}; } catch (e) { c = {}; }
+    if (c.d !== today) c = { d: today, n: 0 };
+    c.n += n;
+    try { localStorage.setItem(KEY, JSON.stringify(c)); } catch (e) { /* ignore */ }
+    if (c.n > lim) {
+      var wa = sellerWA('Hello, I want a bigger Chil plan. My Device ID is ' + Act.shownId() + '.');
+      setTimeout(function () {
+        A.sheet('<h2>Daily limit reached</h2><p class="mute">Your plan covers up to ' + lim + ' messages a day. You have read ' + c.n + ' today. Everything was saved. Please upgrade your plan for busier days.</p>' + (wa ? '<a class="btn green block" href="' + wa + '" target="_blank" rel="noopener">Ask about a bigger plan</a>' : '') + '<button class="btn ghost block" id="fu-ok" style="margin-top:8px">OK</button>', function (b) { U.$('#fu-ok', b).onclick = A.closeSheet; });
+      }, 400);
+    }
+  };
   A.subCardHTML = function () {
     var s = Act.state(), line, sub = '';
     if (s.type === 'lifetime') line = 'Never expires';
@@ -165,7 +180,7 @@
       line = (s.type === 'trial' ? 'Free trial' : 'Subscription') + ' until ' + U.fmtDayYear(s.end);
       sub = s.kind === 'grace' ? 'Ended. Renew today to keep using Chil.' : s.left === 0 ? 'Ends today.' : s.left === 1 ? '1 day left.' : s.left + ' days left.';
     }
-    return '<div class="card"><h3>Subscription</h3><div class="list-item"><div class="grow"><b>' + U.esc(line) + '</b>' + (sub ? '<small>' + U.esc(sub) + '</small>' : '') + '</div>' +
+    return '<div class="card"><h3>Subscription</h3><div class="list-item"><div class="grow"><b>' + U.esc(line) + '</b>' + (sub ? '<small>' + U.esc(sub) + '</small>' : '') + (Act.tierName() ? '<small>Plan size: ' + U.esc(Act.tierName()) + '</small>' : '') + '</div>' +
       (s.type === 'free' ? '' : '<button class="btn small ghost" id="s-code">' + (s.type === 'lifetime' ? 'Enter code' : 'Renew') + '</button>') + '</div></div>';
   };
 

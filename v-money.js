@@ -193,9 +193,10 @@
       if (!tag) { err.textContent = 'Please choose a category or type your own.'; return; }
       if (custom) { var found = A.allTags(r.dir).filter(function (t) { return U.key(t) === U.key(custom); })[0]; tag = found || custom; if (!found) A.rememberTag(custom); }
       r.bucket = sel.bucket || r.bucket || null; r.tag = tag; delete r.auto;
+      A.syncLoan(r);
       if (ruleOn) {
         S.D.rules[A.ruleKey(r)] = { bucket: r.bucket, tag: r.tag };
-        S.D.tx.forEach(function (x) { if (x !== r && x.dir === r.dir && U.key(x.name) === U.key(r.name) && (x.auto || A.needsTag(x))) { if (x.auto || !x.bucket) { x.bucket = r.bucket; delete x.auto; } if (!x.tag) x.tag = r.tag; } });
+        S.D.tx.forEach(function (x) { if (x !== r && x.dir === r.dir && U.key(x.name) === U.key(r.name) && (x.auto || A.needsTag(x))) { if (x.auto || !x.bucket) { x.bucket = r.bucket; delete x.auto; } if (!x.tag) { x.tag = r.tag; A.syncLoan(x); } } });
       }
       S.commit('tx', 'rules', 'settings');
       A.closeSheet(); U.toast('Saved'); A.refresh();
@@ -252,6 +253,7 @@
             S.D.settings.lastImportAt = U.todayISO();
             S.commit('tx', 'settings');
             A.closeSheet();
+            if (A.fairUse) A.fairUse(ms.added.length);
             U.toast(ms.added.length + ' added' + (n ? ', ' + n + ' tagged by your rules' : ''), 3400);
             st.tab = 'money'; st.onlyUntagged = false; A.go('money');
           };

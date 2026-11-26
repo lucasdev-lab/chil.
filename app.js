@@ -9,7 +9,7 @@
     var s = S.D.settings, today = U.todayISO();
     var morning = !first && s.setupDone && s.greetedDate !== today;
     A.screen('splash', '<div class="scene">' + C.Logo.SUNRISE + '</div><div class="below">' + C.Logo.lockup(48, 34) +
-      (morning ? '<div class="msg">' + U.esc(s.openMsg) + '</div>' : '<div class="tag">Your money, sorted.</div>') + '</div>');
+      (morning ? '<div class="msg">' + U.esc(s.openMsg) + '</div>' : '<div class="tag">Your money, sorted.</div>') + '<div class="dots"><i></i><i></i><i></i></div></div>');
     if (morning) { s.greetedDate = today; S.commit('settings'); }
   }
 
@@ -17,7 +17,10 @@
     A.clearScreen();
     U.$('#app').classList.remove('hide');
     A.nav.start();
-    A.go('money', true);
+    var last = 'money';
+    try { last = sessionStorage.getItem('chil.last') || 'money'; } catch (e) { /* ignore */ }
+    if (!A.V[last] || last === 'add') last = 'money';
+    A.go(last, true);
   }
 
   function afterActivation() {

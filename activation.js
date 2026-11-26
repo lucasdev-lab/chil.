@@ -40,9 +40,9 @@
     var b = b32decode(code);
     if (b.length === 64) return { legacy: true, type: 'lifetime', days: 0, sig: b };
     if (b.length === 68) {
-      var type = TYPE_BY_BYTE[b[0]];
+      var type = TYPE_BY_BYTE[b[0] & 15];
       if (!type) return null;
-      return { legacy: false, type: type, days: (b[1] << 16) | (b[2] << 8) | b[3], sig: b.slice(4) };
+      return { legacy: false, type: type, tier: b[0] >> 4, days: (b[1] << 16) | (b[2] << 8) | b[3], sig: b.slice(4) };
     }
     return null;
   }
@@ -64,11 +64,11 @@
         var p = parse(code);
         if (!p) return null;
         var id = normId(deviceId);
-        var msg = p.legacy ? id : id + ':' + CHAR_BY_TYPE[p.type] + ':' + p.days;
+        var msg = p.legacy ? id : id + ':' + CHAR_BY_TYPE[p.type] + ':' + p.days + (p.tier ? ':' + p.tier : '');
         var key = await crypto.subtle.importKey('jwk', window.CHIL_CONFIG.PUBLIC_KEY_JWK, { name: 'ECDSA', namedCurve: 'P-256' }, false, ['verify']);
         var ok = await crypto.subtle.verify({ name: 'ECDSA', hash: 'SHA-256' }, key, p.sig, new TextEncoder().encode(msg));
         if (!ok) return null;
-        return { type: p.type, end: p.type === 'lifetime' ? null : dayIso(p.days) };
+        return { type: p.type, tier: p.tier || 0, end: p.type === 'lifetime' ? null : dayIso(p.days) };
       } catch (e) { return null; }
     },
 
@@ -78,9 +78,13 @@
       var a = readAct();
       if (!a.code || !Act.supported()) { Act.info = { ok: false }; return; }
       var v = await Act.verify(Act.deviceId(), a.code);
-      Act.info = v ? { ok: true, type: v.type, end: v.end } : { ok: false };
+      Act.info = v ? { ok: true, type: v.type, tier: v.tier, end: v.end } : { ok: false };
     },
 
+    // Plan size: 0 = old code (no limit), 1 = up to 50 messages a day, 2 = up to 100, 3 = no limit.
+    tier: function () { return Act.info && Act.info.tier ? Act.info.tier : 0; },
+    dailyLimit: function () { var t = Act.tier(); return t === 1 ? 50 : t === 2 ? 100 : null; },
+    tierName: function () { var t = Act.tier(); return t === 1 ? 'Small (up to 50 messages a day)' : t === 2 ? 'Medium (up to 100 messages a day)' : t === 3 ? 'Large (more than 100 a day)' : ''; },
     isBlocked: function () {
       var me = normId(Act.deviceId());
       return (window.CHIL_CONFIG.BLOCKED || []).some(function (x) { return normId(x) === me; });
@@ -110,7 +114,7 @@
     activate: async function (code) {
       var v = await Act.verify(Act.deviceId(), code);
       if (!v) return { ok: false, reason: 'invalid' };
-      var info = { ok: true, type: v.type, end: v.end };
+      var info = { ok: true, type: v.type, tier: v.tier, end: v.end };
       if (v.type !== 'lifetime') {
         var s = Act.state(info);
         if (s.kind === 'expired') return { ok: false, reason: 'ended', end: v.end };
