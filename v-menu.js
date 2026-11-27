@@ -12,6 +12,7 @@
       return '<h1 class="page-title">More</h1>' +
         item('customers', 'people', 'Customers', nc ? nc + (nc === 1 ? ' person' : ' people') + ' ranked by what they spent' : 'Ranked by what they spent') +
         item('debts', 'debt', 'Debtors and creditors', 'Creditors owe you KSh ' + U.money(d.open) + ' · you owe debtors KSh ' + U.money(c.open)) +
+        item('bank', 'bank', 'Money in bank', 'Bank balances and cash taken to bank') +
         item('spend', 'spend', 'Expenditure', 'All your money out, by category') +
         item('calc', 'calc', 'Calculator', 'Quick sums') +
         item('search', 'search', 'Search', 'Names, amounts, categories, codes') +

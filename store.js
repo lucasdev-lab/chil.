@@ -12,7 +12,7 @@
     setupDone: false, lastBackup: null, customTags: [],
     closedDate: null, greetedDate: null, lastImportAt: null, installedAt: null, backupSnoozeUntil: null, v2: false, v3: false, hidden: []
   };
-  var D = { settings: null, tx: [], rules: {}, biz: { capital: null, rows: [], stockSnaps: [], equip: [], mpesaBal: null }, debts: [], cash: { days: {} } };
+  var D = { settings: null, tx: [], rules: {}, biz: { capital: null, rows: [], stockSnaps: [], equip: [], mpesaBal: null }, debts: [], cash: { days: {}, used: [], banked: [], bankBal: {}, v4: true } };
   var warned = false;
 
   function read(k, def) {
@@ -50,12 +50,19 @@
     return out;
   }
   function cleanCash(c) {
-    var out = { days: {} };
-    if (c && c.days && typeof c.days === 'object') {
-      Object.keys(c.days).forEach(function (d) {
-        var o = c.days[d] || {};
-        out.days[d] = { in: num(o.in) || 0, used: num(o.used) || 0, open: num(o.open) };
-      });
+    var out = { days: {}, used: [], banked: [], bankBal: {}, v4: true };
+    if (c && typeof c === 'object') {
+      if (c.days && typeof c.days === 'object') {
+        Object.keys(c.days).forEach(function (d) {
+          var o = c.days[d] || {};
+          out.days[d] = { in: num(o.in) || 0, open: c.v4 ? num(o.open) : null, close: c.v4 ? num(o.close) : null };
+          // Before 1.0.7 "cash used" was one number a day. It becomes one entry.
+          if (!c.v4 && num(o.used) > 0) out.used.push({ id: 'u' + d, date: d, amount: num(o.used), tag: 'Cash used', bucket: null, note: '' });
+        });
+      }
+      if (c.v4 && Array.isArray(c.used)) out.used = out.used.concat(c.used.filter(function (x) { return x && x.id && x.date && num(x.amount) > 0; }));
+      if (c.v4 && Array.isArray(c.banked)) out.banked = c.banked.filter(function (x) { return x && x.id && x.date && num(x.amount) > 0; });
+      if (c.v4 && c.bankBal && typeof c.bankBal === 'object') Object.keys(c.bankBal).forEach(function (k) { if (num(c.bankBal[k]) != null) out.bankBal[k] = num(c.bankBal[k]); });
     }
     return out;
   }
@@ -130,8 +137,8 @@
       Store.init();
     },
     // Tags the user can pick from.
-    IN_TAGS: ['Sales', 'Refund', 'Gift', 'Loan repaid', 'Business debt', 'Other'],
-    OUT_TAGS: ['Food', 'Transport', 'Stock', 'Savings', 'Rent', 'Airtime', 'Family', 'School fees', 'Utilities', 'Business debt', 'Other']
+    IN_TAGS: ['Sales', 'Refund', 'Gift', 'Loan repaid', 'Business debt', 'Interest', 'Other'],
+    OUT_TAGS: ['Food', 'Transport', 'Stock', 'Savings', 'Rent', 'Airtime', 'Family', 'School fees', 'Utilities', 'Business debt', 'Bank charges', 'Other']
   };
   C.Store = Store;
 })();

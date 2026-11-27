@@ -6,27 +6,28 @@
 
   function inPeriod(d) { return st.spMonth === 'all' || U.monthKey(d) === st.spMonth; }
   function groupName(b) { return b === 'business' ? 'Business' : b === 'personal' ? 'Personal' : b === 'savings' ? 'Savings' : 'Not sorted yet'; }
-  var ORDER = ['Business', 'Personal', 'Savings', 'Cash used', 'Not sorted yet'];
+  var ORDER = ['Business', 'Personal', 'Savings', 'Not sorted yet'];
 
   // Every money-out item, one flat list.
   function items() {
     var out = [];
     S.D.tx.forEach(function (r) {
       if (!inPeriod(r.date)) return;
+      var g = groupName(r.bucket);
       if (r.dir === 'out') {
-        out.push({ date: r.date, ts: r.ts, what: r.name, group: groupName(r.bucket), cat: r.tag || (r.bucket === 'savings' ? 'Savings' : 'No category'), amount: U.round2(r.amount + (r.fee || 0)), fee: r.fee || 0, src: 'M-Pesa' });
-      } else if (r.dir === 'own' && r.fee) {
-        out.push({ date: r.date, ts: r.ts, what: (r.name || 'Withdrawal') + ' (fee)', group: groupName(r.bucket), cat: r.tag || 'M-Pesa fees', amount: U.round2(r.fee), fee: r.fee, src: 'M-Pesa' });
+        out.push({ date: r.date, ts: r.ts, what: r.name, group: g, cat: r.tag || (r.bucket === 'savings' ? 'Savings' : 'No category'), amount: U.round2(r.amount), fee: 0, src: r.bank ? r.account : 'M-Pesa' });
+      }
+      if ((r.dir === 'out' || r.dir === 'own') && r.fee) {
+        out.push({ date: r.date, ts: r.ts, what: (r.name || 'Transfer') + ' (cost)', group: g, cat: 'Transaction cost', amount: U.round2(r.fee), fee: r.fee, src: r.bank ? r.account : 'M-Pesa' });
       }
     });
     ((S.D.biz && S.D.biz.rows) || []).forEach(function (b) {
       if (!inPeriod(b.date)) return;
       out.push({ date: b.date, ts: b.date + ' 00:00', what: b.item || (b.kind === 'stock' ? 'Stock' : 'Business expense'), group: 'Business', cat: b.kind === 'stock' ? 'Stock bought' : 'Other business costs', amount: U.round2(b.amount), fee: 0, src: 'Business tab' });
     });
-    var days = (S.D.cash && S.D.cash.days) || {};
-    Object.keys(days).forEach(function (d) {
-      var u = Number(days[d].used) || 0;
-      if (u > 0 && inPeriod(d)) out.push({ date: d, ts: d + ' 00:00', what: 'Cash used', group: 'Cash used', cat: 'Cash (not sorted)', amount: U.round2(u), fee: 0, src: 'Cash' });
+    ((S.D.cash && S.D.cash.used) || []).forEach(function (x) {
+      if (!inPeriod(x.date)) return;
+      out.push({ date: x.date, ts: x.date + ' 00:00', what: x.note || 'Cash used', group: x.bucket === 'business' ? 'Business' : x.bucket === 'personal' ? 'Personal' : 'Not sorted yet', cat: x.tag || 'Cash used', amount: U.round2(x.amount), fee: 0, src: 'Cash' });
     });
     return out;
   }
@@ -101,7 +102,7 @@
         });
         h += '</div>';
       });
-      return h + '<p class="hint center">Money out by M-Pesa includes the fee. Tap a category to see when and on what. Categories come from the tags you set in Money.</p>';
+      return h + '<p class="hint center">Transaction costs (M-Pesa, bank and ATM charges) show as their own category. Tap a category to see when and on what. Categories come from the tags you set in Money.</p>';
     },
     mount: function (root) {
       var m = U.$('#sp-m', root); if (m) m.onchange = function () { st.spMonth = this.value; A.refresh(); };

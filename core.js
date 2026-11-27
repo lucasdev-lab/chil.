@@ -109,7 +109,7 @@
         s.fees += fee;
         if (r.tag === 'Savings') {
           s.saved += r.amount; s.spent += fee;
-          if (fee) s.cats.Fees = (s.cats.Fees || 0) + fee;
+          if (fee) s.cats['Transaction cost'] = (s.cats['Transaction cost'] || 0) + fee;
           s.cats.Savings = (s.cats.Savings || 0) + r.amount;
           s.outFee += fee;
         } else {
@@ -117,10 +117,11 @@
           s.spent += tot;
           if (r.bucket === 'business') s.outBiz += tot; else if (r.bucket === 'personal') s.outPer += tot; else s.outUn += tot;
           var c = r.tag || 'Not tagged yet';
-          s.cats[c] = (s.cats[c] || 0) + tot;
+          s.cats[c] = (s.cats[c] || 0) + r.amount;
+          if (fee) s.cats['Transaction cost'] = (s.cats['Transaction cost'] || 0) + fee;
         }
       } else { // own money moved (withdrawals): only the fee is a cost
-        if (fee) { s.fees += fee; s.spent += fee; s.outFee += fee; s.cats.Fees = (s.cats.Fees || 0) + fee; }
+        if (fee) { s.fees += fee; s.spent += fee; s.outFee += fee; s.cats['Transaction cost'] = (s.cats['Transaction cost'] || 0) + fee; }
       }
     });
     ['inn', 'spent', 'saved', 'fees', 'inBiz', 'inPer', 'inUn', 'outBiz', 'outPer', 'outUn', 'outFee'].forEach(function (k) { s[k] = U.round2(s[k]); });
@@ -133,36 +134,49 @@
     return Object.keys(obj).map(function (k) { return [k, obj[k]]; }).sort(function (a, b) { return b[1] - a[1]; });
   };
 
-  /* ---------- daily cash, carried from day to day ---------- */
+  /* ---------- daily cash: the owner types opening cash and closing cash; Chil works out the cash sales ---------- */
   A.bizPaid = function (date) {
     return U.round2(U.sum(S.D.biz.rows.filter(function (r) { return r.date === date; }), function (r) { return +r.amount || 0; }));
   };
-  // One entry per day that has any activity. open = brought forward from the day before (or typed), close = what is left.
+  A.cashUsedList = function (date) { return S.D.cash.used.filter(function (x) { return !date || x.date === date; }); };
+  A.cashBankedList = function (date) { return S.D.cash.banked.filter(function (x) { return !date || x.date === date; }); };
+  // One entry per day with any activity.
+  // Cash sales = closing cash - opening cash + cash used + business costs paid + deposits to M-Pesa - withdrawals + cash banked.
   A.ledger = function () {
     var byDay = {}, dates = {};
     S.D.tx.forEach(function (r) { (byDay[r.date] = byDay[r.date] || []).push(r); dates[r.date] = 1; });
-    Object.keys(S.D.cash.days).forEach(function (d) { var c = S.D.cash.days[d]; if (c.in || c.used || c.open != null) dates[d] = 1; });
+    Object.keys(S.D.cash.days).forEach(function (d) { var c = S.D.cash.days[d]; if (c.in || c.open != null || c.close != null) dates[d] = 1; });
+    S.D.cash.used.forEach(function (x) { dates[x.date] = 1; });
+    S.D.cash.banked.forEach(function (x) { dates[x.date] = 1; });
     S.D.biz.rows.forEach(function (r) { dates[r.date] = 1; });
-    var out = [], prev = 0;
-    Object.keys(dates).sort().forEach(function (d) {
-      var sm = A.summarize(byDay[d] || []), c = S.D.cash.days[d] || { in: 0, used: 0, open: null };
-      var bp = A.bizPaid(d), auto = prev, open = c.open != null ? c.open : auto;
-      var close = U.round2(open + sm.left + (c.in || 0) - (c.used || 0) - bp);
-      out.push({ date: d, auto: auto, open: open, typed: c.open != null, mIn: sm.inn, mOut: U.round2(sm.spent + sm.saved), cashIn: c.in || 0, cashUsed: c.used || 0, bizPaid: bp, close: close, sm: sm });
-      prev = close;
+    return Object.keys(dates).sort().map(function (d) {
+      var txs = byDay[d] || [], sm = A.summarize(txs), c = S.D.cash.days[d] || { in: 0, open: null, close: null };
+      var dep = 0, wd = 0, banked = 0;
+      txs.forEach(function (r) {
+        if (r.kind === 'deposit') dep += r.amount;
+        else if (r.kind === 'withdrawal' || r.kind === 'atm') wd += r.amount;
+        else if (r.kind === 'cash-to-bank') banked += r.amount;
+      });
+      A.cashBankedList(d).forEach(function (x) { banked += x.amount; });
+      var ub = 0, up = 0;
+      A.cashUsedList(d).forEach(function (x) { if (x.bucket === 'business') ub += x.amount; else up += x.amount; });
+      var bp = A.bizPaid(d), used = ub + up, derived = c.open != null && c.close != null;
+      var raw = derived ? U.round2(c.close - c.open + used + bp + dep - wd + banked) : (c.in || 0);
+      return { date: d, open: c.open, close: c.close, derived: derived, mIn: sm.inn, mOut: U.round2(sm.spent + sm.saved),
+        cashInRaw: raw, cashIn: Math.max(0, raw), cashUsed: U.round2(used), cashUsedBiz: U.round2(ub), cashUsedPer: U.round2(up), bizPaid: bp,
+        deposits: U.round2(dep), withdrawals: U.round2(wd), banked: U.round2(banked), sm: sm };
     });
-    return out;
   };
-  // The entry for one date. A day with no activity just repeats the last closing.
   A.ledgerFor = function (date) {
-    var l = A.ledger(), last = 0, hit = null;
-    l.forEach(function (e) { if (e.date === date) hit = e; else if (e.date < date) last = e.close; });
-    return hit || { date: date, auto: last, open: last, typed: false, mIn: 0, mOut: 0, cashIn: 0, cashUsed: 0, bizPaid: 0, close: last, sm: A.summarize([]) };
+    var hit = null;
+    A.ledger().forEach(function (e) { if (e.date === date) hit = e; });
+    return hit || { date: date, open: null, close: null, derived: false, mIn: 0, mOut: 0, cashInRaw: 0, cashIn: 0, cashUsed: 0, cashUsedBiz: 0, cashUsedPer: 0, bizPaid: 0, deposits: 0, withdrawals: 0, banked: 0, sm: A.summarize([]) };
   };
-  A.moneyLeftAt = function (date) {
-    var l = A.ledger(), v = 0;
-    l.forEach(function (e) { if (e.date <= date) v = e.close; });
-    return v;
+  // The last closing cash the owner typed on or before a date (null when none was ever typed).
+  A.cashAt = function (date) {
+    var v = null, d = null;
+    Object.keys(S.D.cash.days).sort().forEach(function (k) { var c = S.D.cash.days[k]; if (k <= date && c.close != null) { v = c.close; d = k; } });
+    return v == null ? null : { value: v, date: d };
   };
   // Totals for the period shown in Summary.
   A.periodCash = function () {
@@ -172,10 +186,56 @@
     else { from = s.sumYear; to = s.sumYear + '-12-31'; }
     var rows = A.ledger().filter(function (e) { return e.date >= from && e.date <= to; });
     if (!rows.length) return null;
-    var t = { open: rows[0].open, close: rows[rows.length - 1].close, cashIn: 0, cashUsed: 0, bizPaid: 0 };
-    rows.forEach(function (e) { t.cashIn += e.cashIn; t.cashUsed += e.cashUsed; t.bizPaid += e.bizPaid; });
-    t.cashIn = U.round2(t.cashIn); t.cashUsed = U.round2(t.cashUsed); t.bizPaid = U.round2(t.bizPaid);
+    var t = { open: null, close: null, cashIn: 0, cashUsed: 0, bizPaid: 0, deposits: 0, withdrawals: 0, banked: 0 };
+    rows.forEach(function (e) {
+      if (t.open == null && e.open != null) t.open = e.open;
+      if (e.close != null) t.close = e.close;
+      ['cashIn', 'cashUsed', 'bizPaid', 'deposits', 'withdrawals', 'banked'].forEach(function (k) { t[k] += e[k]; });
+    });
+    ['cashIn', 'cashUsed', 'bizPaid', 'deposits', 'withdrawals', 'banked'].forEach(function (k) { t[k] = U.round2(t[k]); });
     return t;
+  };
+
+  /* ---------- bank accounts: balance from the latest bank message, plus cash you took to the bank after it ---------- */
+  A.bankAccounts = function (date) {
+    var acc = {};
+    function get(l) { return acc[l] || (acc[l] = { label: l, auto: null, last: '', count: 0, add: [] }); }
+    S.D.tx.forEach(function (r) {
+      if (!r.bank || (date && r.date > date)) return;
+      var a = get(r.account); a.count++;
+      if (r.balance != null && r.ts >= a.last) { a.auto = r.balance; a.last = r.ts; }
+    });
+    S.D.cash.banked.forEach(function (x) { if (!date || x.date <= date) get(x.account || 'Bank').add.push(x); });
+    var out = Object.keys(acc).sort().map(function (k) {
+      var a = acc[k], extra = U.sum(a.add.filter(function (x) { return !a.last || x.date > a.last.slice(0, 10); }), function (x) { return x.amount; });
+      var typed = !date && S.D.cash.bankBal[k] != null ? S.D.cash.bankBal[k] : null;
+      a.balance = typed != null ? typed : U.round2((a.auto || 0) + extra); a.typed = typed != null;
+      return a;
+    });
+    Object.keys(S.D.cash.bankBal).forEach(function (k) { if (!acc[k] && !date) out.push({ label: k, auto: null, last: '', count: 0, add: [], balance: S.D.cash.bankBal[k], typed: true }); });
+    out.total = U.round2(U.sum(out, function (a) { return a.balance; }));
+    return out;
+  };
+  // Own money moved between your accounts is not income or spending. Only the fee counts.
+  A.setTransfer = function (r, on) {
+    if (on && !r.xfer && (r.dir === 'in' || r.dir === 'out')) {
+      r.xfer = true; r.dir0 = r.dir; r.kind0 = r.kind; r.dir = 'own';
+      r.kind = r.kind === 'bank-cash-deposit' ? 'cash-to-bank' : 'transfer';
+    } else if (!on && r.xfer) {
+      r.dir = r.dir0 || r.dir; r.kind = r.kind0 || r.kind; delete r.xfer; delete r.dir0; delete r.kind0;
+    }
+    S.commit('tx');
+  };
+  // A bank credit from M-Pesa that matches an M-Pesa payment of the same amount at about the same time is your own money moving.
+  A.linkTransfers = function (list) {
+    var n = 0, mins = function (r) { return Date.parse(r.date + 'T' + (r.time || '00:00') + ':00Z') / 60000; };
+    (list || S.D.tx).forEach(function (b) {
+      if (!b.bank || b.xfer || (b.kind !== 'from-mobile' && b.kind !== 'to-mobile')) return;
+      var want = b.kind === 'from-mobile' ? 'out' : 'in';
+      var m = S.D.tx.filter(function (x) { return !x.bank && !x.xfer && x.dir === want && x.amount === b.amount && x.date === b.date && Math.abs(mins(x) - mins(b)) <= 180; })[0];
+      if (m) { A.setTransfer(b, true); A.setTransfer(m, true); n++; }
+    });
+    return n;
   };
 
   /* ---------- comparison (days of a month, months of a year, or all years) ---------- */
@@ -192,13 +252,13 @@
     var rows = Object.keys(groups).sort().map(function (k) {
       var es = groups[k], r = { bIn: 0, bOut: 0, pIn: 0, pOut: 0, inn: 0, out: 0, made: 0 };
       es.forEach(function (e) {
-        r.bIn += e.sm.inBiz + e.cashIn; r.bOut += e.sm.outBiz + e.bizPaid;
-        r.pIn += e.sm.inPer; r.pOut += e.sm.outPer + e.cashUsed;
+        r.bIn += e.sm.inBiz + e.cashIn; r.bOut += e.sm.outBiz + e.bizPaid + e.cashUsedBiz;
+        r.pIn += e.sm.inPer; r.pOut += e.sm.outPer + e.cashUsedPer;
         r.inn += e.sm.inn + e.cashIn; r.out += e.sm.spent + e.sm.saved + e.cashUsed + e.bizPaid;
       });
       Object.keys(r).forEach(function (x) { r[x] = U.round2(r[x]); });
       r.made = U.round2(r.inn - r.out);
-      r.key = k; r.close = es[es.length - 1].close;
+      r.key = k; r.close = null; es.forEach(function (e) { if (e.close != null) r.close = e.close; });
       r.label = mode === 'day' ? U.fmtDayLong(k) : mode === 'month' ? U.monthLabel(k) : k;
       r.short = mode === 'day' ? U.DAYS[U.parseISO(k).getDay()].slice(0, 3) + ' ' + U.fmtDay(k) : mode === 'month' ? U.MON[+k.slice(5) - 1] + ' ' + k.slice(2, 4) : k;
       return r;
@@ -206,7 +266,7 @@
     var t = { bIn: 0, bOut: 0, pIn: 0, pOut: 0, made: 0, inn: 0, out: 0 };
     rows.forEach(function (r) { Object.keys(t).forEach(function (k) { t[k] += r[k]; }); });
     Object.keys(t).forEach(function (k) { t[k] = U.round2(t[k]); });
-    t.close = rows.length ? rows[rows.length - 1].close : 0;
+    t.close = null; rows.forEach(function (r) { if (r.close != null) t.close = r.close; });
     return { title: title, rows: rows, total: t, unit: mode === 'day' ? 'Day' : mode === 'month' ? 'Month' : 'Year' };
   };
 
@@ -261,7 +321,7 @@
 
   /* ---------- rendering ---------- */
   var NAV = [['money', 'Money', 'money'], ['sum', 'Summary', 'sum'], ['add', 'Add', 'plus'], ['biz', 'Business', 'biz'], ['menu', 'More', 'more']];
-  var MORE_TABS = ['menu', 'customers', 'debts', 'spend', 'calc', 'search', 'help', 'more'];
+  var MORE_TABS = ['menu', 'customers', 'debts', 'bank', 'spend', 'calc', 'search', 'help', 'more'];
 
   A.shell = function () {
     var s = S.D.settings;
@@ -304,7 +364,7 @@
       U.toast('Press back again to exit', 2200, 'exit');
     });
   };
-  A.MORE_SUB = ['customers', 'debts', 'spend', 'calc', 'search', 'help', 'more'];
+  A.MORE_SUB = ['customers', 'debts', 'bank', 'spend', 'calc', 'search', 'help', 'more'];
   A.backTarget = function () { return A.MORE_SUB.indexOf(A.st.tab) >= 0 && A.st.from === 'menu' ? 'menu' : 'money'; };
   A.go = function (tab, silent) {
     var prev = A.st.tab;

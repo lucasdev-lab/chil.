@@ -31,8 +31,8 @@
     var tx = S.D.tx.filter(function (r) { return r.date >= f && r.date <= to; });
     var sm = A.summarize(tx);
     var led = A.ledger().filter(function (e) { return e.date >= f && e.date <= to; });
-    var cashIn = 0, cashUsed = 0, rowStock = 0, rowExp = 0, days = {};
-    led.forEach(function (e) { cashIn += e.cashIn; cashUsed += e.cashUsed; });
+    var cashIn = 0, cashUsed = 0, cashUsedBiz = 0, rowStock = 0, rowExp = 0, days = {};
+    led.forEach(function (e) { cashIn += e.cashIn; cashUsed += e.cashUsedPer; cashUsedBiz += e.cashUsedBiz; });
     S.D.biz.rows.forEach(function (r) {
       if (r.date < f || r.date > to) return;
       if (r.kind === 'stock') rowStock += amt(r); else rowExp += amt(r);
@@ -51,7 +51,7 @@
       from: from, to: to,
       salesM: U.round2(sm.inBiz), salesCash: U.round2(cashIn), sales: U.round2(sm.inBiz + cashIn),
       stockBuyM: U.round2(mStock), stockBuyRows: U.round2(rowStock), stockBuy: U.round2(mStock + rowStock),
-      expM: U.round2(mExp), expRows: U.round2(rowExp), exp: U.round2(mExp + rowExp),
+      expM: U.round2(mExp), expRows: U.round2(rowExp), expCash: U.round2(cashUsedBiz), exp: U.round2(mExp + rowExp + cashUsedBiz),
       openStock: open ? open.value : 0, closeStock: close ? close.value : 0, hasClose: !!close, hasOpen: !!open || !from,
       persOut: U.round2(persOut), cashUsed: U.round2(cashUsed), activeDays: Object.keys(days).length, sm: sm
     };
@@ -112,27 +112,28 @@
     return U.round2(t);
   }
   A.balanceSheet = function (date) {
-    var left = A.moneyLeftAt(date), mp = mpesaBalanceAt(date);
+    var mp = mpesaBalanceAt(date), cashAt = A.cashAt(date), bankAcc = A.bankAccounts(date);
     var typed = S.D.biz.mpesaBal;
     var mpesa = typed != null ? typed : (mp.auto != null ? mp.auto : 0);
-    var cash = U.round2(left - mpesa);
+    var cash = cashAt ? cashAt.value : 0, bank = bankAcc.total;
     var snap = snapBefore(date, false), stock = snap ? snap.value : 0;
     var debtors = debtOpenAt('owed', date), equip = U.sum(S.D.biz.equip, function (e) { return e.value; });
-    var assets = U.round2(mpesa + cash + stock + debtors + equip);
+    var assets = U.round2(mpesa + cash + bank + stock + debtors + equip);
     var creditors = debtOpenAt('owe', date);
     var net = U.round2(assets - creditors);
     var pl = A.bizCalc(null, date), sm = pl.sm;
     var drawings = U.round2((sm.spent + sm.saved - sm.outBiz) - sm.inPer - sm.inUn + pl.cashUsed);
     var cap = S.D.biz.capital || 0;
     var other = U.round2(net - (cap + pl.profit - drawings));
-    return { date: date, mpesa: mpesa, mpesaAuto: mp.auto, mpesaTyped: typed != null, cash: cash, stock: stock, stockDate: snap ? snap.date : null, debtors: debtors, equip: equip,
-      assets: assets, creditors: creditors, net: net, cap: cap, profit: pl.profit, drawings: drawings, other: other, left: left };
+    return { date: date, mpesa: mpesa, mpesaAuto: mp.auto, mpesaTyped: typed != null, cash: cash, cashDate: cashAt ? cashAt.date : null, bank: bank, stock: stock, stockDate: snap ? snap.date : null, debtors: debtors, equip: equip,
+      assets: assets, creditors: creditors, net: net, cap: cap, profit: pl.profit, drawings: drawings, other: other };
   };
   function bsRows(b, money) {
     return [
       ['h', 'What you own (Assets)'],
       ['r', 'M-Pesa and Pochi balance', b.mpesa],
-      ['r', 'Cash in hand', b.cash],
+      ['r', 'Cash in hand' + (b.cashDate ? ' (counted ' + U.fmtDayYear(b.cashDate) + ')' : ' (type your closing cash in Money)'), b.cash],
+      ['r', 'Money in bank', b.bank],
       ['r', 'Stock on the shelf' + (b.stockDate ? ' (counted ' + U.fmtDayYear(b.stockDate) + ')' : ''), b.stock],
       ['r', 'Creditors (people who owe you)', b.debtors],
       ['r', 'Equipment and other assets', b.equip],

@@ -26,44 +26,78 @@
     return b + U.esc(r.tag || '');
   }
 
-  /* ---------- daily cash card: brought forward, cash in, cash used, closing ---------- */
+  /* ---------- daily cash card: opening cash, closing cash, cash sales worked out ---------- */
   function sgn(n) { return (n < 0 ? '−' : '') + U.money(Math.abs(n)); }
   function cashCard() {
     var d = st.cashDay || U.todayISO(), e = A.ledgerFor(d);
-    var first = !A.ledger().length || A.ledger()[0].date >= d;
+    var sales = e.derived ? '<b class="num ' + (e.cashInRaw < 0 ? 'neg' : 'pos') + '">' + sgn(e.cashInRaw) + '</b>' : (e.cashIn ? '<b class="num pos">' + sgn(e.cashIn) + '</b>' : '<b class="num mute">—</b>');
+    var moves = [];
+    if (e.deposits) moves.push('deposited to M-Pesa ' + U.money(e.deposits));
+    if (e.withdrawals) moves.push('withdrawn from M-Pesa ' + U.money(e.withdrawals));
+    if (e.banked) moves.push('cash taken to bank ' + U.money(e.banked));
+    if (e.bizPaid) moves.push('business costs paid ' + U.money(e.bizPaid));
     return '<div class="card cashcard"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h3 style="margin:0">Cash for the day</h3>' +
       '<input class="in" type="date" id="cc-date" value="' + d + '" style="width:auto;padding:6px 8px;min-height:36px"></div>' +
       '<div class="cc-grid">' +
-      '<label><small>Brought forward' + (e.typed ? ' (typed)' : ' from yesterday') + '</small><input class="in" id="cc-open" inputmode="decimal" autocomplete="off" value="' + (e.open ? U.esc(String(e.open)) : '') + '" placeholder="0"></label>' +
-      '<label><small>Cash in (cash sales)</small><input class="in" id="cc-in" inputmode="decimal" autocomplete="off" value="' + (e.cashIn ? U.esc(String(e.cashIn)) : '') + '" placeholder="0"></label>' +
-      '<label><small>Cash used</small><input class="in" id="cc-used" inputmode="decimal" autocomplete="off" value="' + (e.cashUsed ? U.esc(String(e.cashUsed)) : '') + '" placeholder="0"></label>' +
-      '<div class="cc-box"><small>Closing (left for tomorrow)</small><b class="num" id="cc-close">' + sgn(e.close) + '</b></div></div>' +
-      '<p class="hint" id="cc-hint" style="margin:8px 0 0">M-Pesa in ' + U.money(e.mIn) + ', M-Pesa out ' + U.money(e.mOut) + (e.bizPaid ? ', business costs paid in cash ' + U.money(e.bizPaid) + ' (from the Business tab)' : '') + '. Closing = brought forward + M-Pesa in + cash in − M-Pesa out − cash used' + (e.bizPaid ? ' − business costs' : '') + '.' +
-      (first ? ' <b>First day:</b> type all the money you started with (cash and M-Pesa) in Brought forward.' : '') + '</p></div>';
+      '<label><small>Cash when you opened</small><input class="in" id="cc-open" inputmode="decimal" autocomplete="off" value="' + (e.open != null ? U.esc(String(e.open)) : '') + '" placeholder="Type it"></label>' +
+      '<label><small>Cash when you closed</small><input class="in" id="cc-close" inputmode="decimal" autocomplete="off" value="' + (e.close != null ? U.esc(String(e.close)) : '') + '" placeholder="Type it"></label>' +
+      '<div class="cc-box"><small>Cash sales today</small><span id="cc-sales">' + sales + '</span></div>' +
+      '<button class="cc-box cc-btn" id="cc-usedbtn" type="button"><small>Cash used (tap to add)</small><b class="num ' + (e.cashUsed ? 'neg' : 'mute') + '">' + (e.cashUsed ? U.money(e.cashUsed) : 'Add') + '</b></button></div>' +
+      '<div class="row" style="margin-top:8px"><button class="btn small ghost grow" id="cc-bankbtn" type="button">Cash taken to bank</button></div>' +
+      '<p class="hint" id="cc-hint" style="margin:8px 0 0">' + (moves.length ? U.esc(moves.join(' · ')) + '. ' : '') + 'Cash sales = closing − opening + cash used + deposits to M-Pesa − withdrawals + cash taken to bank. Type your cash when you open and when you close.' +
+      (e.derived && e.cashInRaw < 0 ? ' <b>These figures give a negative sale. Check your cash.</b>' : '') + '</p></div>';
   }
+  A.cashUsedSheet = function (date, back) {
+    var list = A.cashUsedList(date), sel = { bucket: 'business', tag: '', custom: '' };
+    function body() {
+      var tags = A.allTags('out');
+      return '<h2>Cash used on ' + U.esc(U.fmtDayLong(date)) + '</h2>' +
+        (list.length ? '<div>' + list.map(function (x) { return '<div class="list-item"><div class="grow"><b>' + U.esc(x.tag || 'Cash used') + '</b><small>' + U.esc(U.cap(x.bucket || 'personal')) + (x.note ? ' · ' + U.esc(x.note) : '') + '</small></div><b class="num neg">' + U.money2(x.amount) + '</b><button class="btn small ghost" data-del="' + x.id + '">Delete</button></div>'; }).join('') + '</div>' : '<p class="hint">No cash used recorded for this day.</p>') +
+        '<label class="f">Amount (KSh)</label><input class="in" id="cu-amt" inputmode="decimal" placeholder="0">' +
+        '<label class="f">Business or personal?</label><div class="chips"><button class="chip biz' + (sel.bucket === 'business' ? ' on' : '') + '" data-b="business">Business</button><button class="chip per' + (sel.bucket === 'personal' ? ' on' : '') + '" data-b="personal">Personal</button></div>' +
+        '<label class="f">Category</label><div class="chips">' + tags.map(function (t) { return '<button class="chip' + (!sel.custom && sel.tag === t ? ' on' : '') + '" data-t="' + U.esc(t) + '">' + U.esc(t) + '</button>'; }).join('') + '</div>' +
+        '<input class="in" id="cu-custom" style="margin-top:10px" maxlength="30" placeholder="Or type your own tag" value="' + U.esc(sel.custom) + '"><input class="in" id="cu-note" style="margin-top:8px" maxlength="60" placeholder="Note (optional)">' +
+        '<div class="err" id="cu-err"></div><div class="row"><button class="btn green grow" id="cu-save">Add</button><button class="btn ghost grow" id="cu-done">Done</button></div>';
+    }
+    function draw(keep) {
+      A.sheet(body(), function (b) {
+        if (keep) { U.$('#cu-amt', b).value = keep.amt; U.$('#cu-note', b).value = keep.note; }
+        function snap() { return { amt: U.$('#cu-amt', b).value, note: U.$('#cu-note', b).value }; }
+        U.$$('[data-b]', b).forEach(function (x) { x.onclick = function () { sel.custom = U.$('#cu-custom', b).value; var k = snap(); sel.bucket = x.getAttribute('data-b'); draw(k); }; });
+        U.$$('[data-t]', b).forEach(function (x) { x.onclick = function () { var k = snap(); sel.custom = ''; sel.tag = x.getAttribute('data-t'); draw(k); }; });
+        U.$$('[data-del]', b).forEach(function (x) { x.onclick = function () { var id = x.getAttribute('data-del'); S.D.cash.used = S.D.cash.used.filter(function (y) { return y.id !== id; }); S.commit('cash'); list = A.cashUsedList(date); draw(snap()); A.refresh(); }; });
+        U.$('#cu-done', b).onclick = function () { A.closeSheet(); A.refresh(); };
+        U.$('#cu-save', b).onclick = function () {
+          var v = C.Calc.evalExpr(U.$('#cu-amt', b).value.trim()), err = U.$('#cu-err', b), custom = U.$('#cu-custom', b).value.trim(), tag = custom || sel.tag;
+          if (v == null || v <= 0) { err.textContent = 'Enter the amount, for example 300.'; return; }
+          if (!tag) { err.textContent = 'Choose a category or type your own.'; return; }
+          if (custom) A.rememberTag(custom);
+          S.D.cash.used.push({ id: U.uid(), date: date, amount: U.round2(v), tag: tag, bucket: sel.bucket, note: U.$('#cu-note', b).value.trim() });
+          S.commit('cash'); list = A.cashUsedList(date); sel.tag = ''; sel.custom = ''; draw(); A.refresh(); U.toast('Added');
+        };
+      });
+    }
+    draw();
+  };
   function bindCash(root) {
     var dEl = U.$('#cc-date', root); if (!dEl) return;
     dEl.onchange = function () { if (dEl.value) { st.cashDay = dEl.value; A.refresh(); } };
-    function parse(el) { var t = el.value.trim(); if (t === '') return 0; var v = C.Calc.evalExpr(t); return v == null || v < 0 ? null : U.round2(v); }
-    function rec() { var d = st.cashDay || U.todayISO(); return S.D.cash.days[d] || (S.D.cash.days[d] = { in: 0, used: 0, open: null }); }
-    function after() {
-      var e = A.ledgerFor(st.cashDay || U.todayISO());
-      U.$('#cc-close', root).textContent = sgn(e.close);
-    }
-    [['#cc-in', 'in'], ['#cc-used', 'used']].forEach(function (x) {
+    function rec() { var d = st.cashDay || U.todayISO(); return S.D.cash.days[d] || (S.D.cash.days[d] = { in: 0, open: null, close: null }); }
+    [['#cc-open', 'open'], ['#cc-close', 'close']].forEach(function (x) {
       var el = U.$(x[0], root);
       el.onchange = function () {
-        var v = parse(el); if (v == null) { U.toast('Enter an amount, for example 500'); var old = (S.D.cash.days[st.cashDay || U.todayISO()] || {})[x[1]]; el.value = old ? old : ''; return; }
-        rec()[x[1]] = v; S.commit('cash'); el.value = v ? v : ''; after();
+        var t = el.value.trim(), r = rec();
+        if (t === '') { r[x[1]] = null; }
+        else {
+          var v = C.Calc.evalExpr(t);
+          if (v == null || v < 0) { U.toast('Enter an amount, for example 5000'); var old = (S.D.cash.days[st.cashDay || U.todayISO()] || {})[x[1]]; el.value = old != null ? old : ''; return; }
+          r[x[1]] = U.round2(v);
+        }
+        S.commit('cash'); A.refresh();
       };
     });
-    var op = U.$('#cc-open', root);
-    op.onchange = function () {
-      var t = op.value.trim(), d = st.cashDay || U.todayISO(), r = rec();
-      if (t === '') { r.open = null; }
-      else { var v = C.Calc.evalExpr(t); if (v == null) { U.toast('Enter an amount'); return; } v = U.round2(v); var auto = A.ledgerFor(d).auto; r.open = v === auto ? null : v; }
-      S.commit('cash'); A.refresh();
-    };
+    U.$('#cc-usedbtn', root).onclick = function () { A.cashUsedSheet(st.cashDay || U.todayISO()); };
+    U.$('#cc-bankbtn', root).onclick = function () { A.cashBankSheet(st.cashDay || U.todayISO()); };
   }
 
   var M = {
@@ -103,7 +137,7 @@
       h += '<div class="tw"><table class="t"><thead><tr><th>Date</th><th class="name">Name</th><th class="r">In</th><th class="r">Out</th><th>Category</th><th>Account</th><th>Code</th></tr></thead><tbody>';
       keys.forEach(function (d) {
         var dt = A.summarize(days[d]);
-        h += '<tr class="day"><td colspan="2" class="name">' + U.esc(U.fmtDayLong(d)) + '</td><td colspan="5">In ' + U.money(dt.inn) + ' &nbsp;·&nbsp; Out ' + U.money(dt.spent + dt.saved) + ' &nbsp;·&nbsp; Closing ' + sgn(A.ledgerFor(d).close) + '</td></tr>';
+        h += '<tr class="day"><td colspan="2" class="name">' + U.esc(U.fmtDayLong(d)) + '</td><td colspan="5">In ' + U.money(dt.inn) + ' &nbsp;·&nbsp; Out ' + U.money(dt.spent + dt.saved) + (A.ledgerFor(d).close != null ? ' &nbsp;·&nbsp; Cash closing ' + sgn(A.ledgerFor(d).close) : '') + '</td></tr>';
         days[d].slice().sort(function (a, b) { return a.ts < b.ts ? 1 : a.ts > b.ts ? -1 : 0; }).forEach(function (r) {
           var amt = r.dir === 'in' ? '<td class="cin num">' + U.money2(r.amount) + '</td><td class="cout"></td>'
             : r.dir === 'out' ? '<td class="cin"></td><td class="cout num">' + U.money2(r.amount + (r.fee || 0)) + '</td>'
@@ -151,13 +185,17 @@
   A.tagSheet = function (code) {
     var r = S.D.tx.filter(function (x) { return x.code === code; })[0];
     if (!r) return;
-    var head = '<h2>' + U.esc(r.name) + '</h2><p class="mute">' + U.fmtDayLong(r.date) + ', ' + U.time12(r.time) + ' · ' + U.esc(r.account) + ' · ' + U.esc(simName(r.sim)) + '</p>' +
+    var head = '<h2>' + U.esc(r.name) + '</h2><p class="mute">' + U.fmtDayLong(r.date) + ', ' + U.time12(r.time) + ' · ' + U.esc(r.account) + (r.bank ? '' : ' · ' + U.esc(simName(r.sim))) + '</p>' +
       '<p style="margin:8px 0"><b class="num ' + (r.dir === 'in' ? 'pos' : r.dir === 'out' ? 'neg' : '') + '" style="font-size:24px">' + (r.dir === 'in' ? '+' : r.dir === 'out' ? '−' : '') + 'KSh ' + U.money2(r.amount) + '</b>' +
       (r.fee ? ' <span class="mute">fee ' + U.money2(r.fee) + '</span>' : '') + '</p>' +
-      '<p class="hint" style="margin:0 0 4px">M-Pesa code ' + r.code + '</p>';
+      '<p class="hint" style="margin:0 0 4px">' + (r.bank ? 'Bank message ID ' : 'M-Pesa code ') + r.code + '</p>';
     if (r.check) head += '<div class="banner" style="margin-top:8px">This message type was not tested before. Please compare the amounts with your phone.</div>';
     if (r.dir === 'own') {
-      A.sheet(head + '<div class="banner green">This is your own money moving between your accounts or out as cash. It is not counted as spending' + (r.fee ? ', only the fee is.' : '.') + '</div><button class="btn ghost block" data-close="1">Close</button>');
+      var why = r.kind === 'deposit' ? 'You gave cash to an agent and it became M-Pesa. Cash in hand goes down, M-Pesa goes up.' : r.kind === 'withdrawal' || r.kind === 'atm' ? 'Money left your account as cash. Cash in hand goes up.' : r.kind === 'cash-to-bank' ? 'Cash from your hand went into the bank.' : 'This is your own money moving between your accounts.';
+      A.sheet(head + '<div class="banner green">' + why + ' It is not counted as income or spending' + (r.fee ? ', only the fee is.' : '.') + '</div>' +
+        (r.xfer ? '<button class="btn ghost block" id="tg-notown" style="margin-top:8px">This was not my own money (count it)</button>' : '') + '<button class="btn ghost block" data-close="1" style="margin-top:8px">Close</button>', function (b) {
+        var n = U.$('#tg-notown', b); if (n) n.onclick = function () { A.setTransfer(r, false); A.closeSheet(); A.refresh(); U.toast('Counted again'); };
+      });
       return;
     }
     var sel = { bucket: r.bucket, tag: r.tag, custom: '' };
@@ -169,6 +207,7 @@
         tags.map(function (t) { return '<button class="chip' + (!sel.custom && sel.tag === t ? ' on' : '') + '" data-t="' + U.esc(t) + '">' + U.esc(t) + '</button>'; }).join('') + '</div>' +
         '<input class="in" id="tg-custom" style="margin-top:10px" maxlength="30" placeholder="Or type your own tag" value="' + U.esc(sel.custom) + '">' +
         '<label class="check-row"><input type="checkbox" id="tg-rule"> Always tag ' + U.esc(r.name) + ' the same way</label>' +
+        '<label class="check-row"><input type="checkbox" id="tg-own"> This is my own money moving between my accounts' + (r.kind === 'bank-cash-deposit' ? ' (my cash taken to the bank)' : '') + ', not ' + (r.dir === 'in' ? 'a sale' : 'spending') + '</label>' +
         '<div class="err" id="tg-err"></div><button class="btn green block" id="tg-save">Save</button>';
       return h;
     }
@@ -187,6 +226,7 @@
       var tag = custom || sel.tag || null;
       ruleOn = U.$('#tg-rule', b).checked;
       var err = U.$('#tg-err', b);
+      if (U.$('#tg-own', b).checked) { A.setTransfer(r, true); A.closeSheet(); U.toast('Saved as your own money'); A.refresh(); return; }
       var isSav = tag && U.key(tag) === 'savings';
       if (r.dir === 'in' && !sel.bucket) { err.textContent = 'Please choose Business or Personal.'; return; }
       if (r.dir === 'out' && !isSav && !sel.bucket) { err.textContent = 'Please choose Business or Personal.'; return; }
@@ -211,7 +251,7 @@
       var sim = 1, res = null;
       function draw(text) {
         var h = '<h2>Add M-Pesa messages</h2><p class="mute">Copy the messages from your SMS app, then paste them here. Pasting the same message twice is safe.</p>' +
-          '<label class="f">Which SIM received these messages?</label><div class="chips"><button class="chip' + (sim === 1 ? ' on' : '') + '" data-s="1">' + U.esc(simName(1)) + '</button><button class="chip' + (sim === 2 ? ' on' : '') + '" data-s="2">' + U.esc(simName(2)) + '</button></div>' +
+          '<p class="hint" style="margin:0 0 8px">Bank messages are recognised automatically.</p><label class="f">Which SIM received the M-Pesa messages?</label><div class="chips"><button class="chip' + (sim === 1 ? ' on' : '') + '" data-s="1">' + U.esc(simName(1)) + '</button><button class="chip' + (sim === 2 ? ' on' : '') + '" data-s="2">' + U.esc(simName(2)) + '</button></div>' +
           '<label class="f">Paste messages</label><textarea class="in" id="ad-text" placeholder="Paste here...">' + U.esc(text || '') + '</textarea><div class="err" id="ad-err"></div>';
         if (res) {
           var ms = P.mergeNew(S.D.tx, res.records);
@@ -252,6 +292,7 @@
             S.D.tx = ms.all;
             S.D.settings.lastImportAt = U.todayISO();
             S.commit('tx', 'settings');
+            var lk = A.linkTransfers(ms.added); if (lk) U.toast(lk + ' bank transfer' + (lk > 1 ? 's' : '') + ' matched to M-Pesa', 3000);
             A.closeSheet();
             if (A.fairUse) A.fairUse(ms.added.length);
             U.toast(ms.added.length + ' added' + (n ? ', ' + n + ' tagged by your rules' : ''), 3400);

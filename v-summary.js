@@ -20,13 +20,13 @@
   }
 
   function cashRowsHTML(pc) {
-    return '<div class="list-item"><span>Brought forward</span><b class="num">' + sg(pc.open) + '</b></div>' +
-      '<div class="list-item"><span>Cash in (cash sales)</span><b class="num pos">' + U.money(pc.cashIn) + '</b></div>' +
-      '<div class="list-item"><span>Cash used</span><b class="num neg">' + U.money(pc.cashUsed) + '</b></div>' +
-      (pc.bizPaid ? '<div class="list-item"><span>Business costs paid in cash</span><b class="num neg">' + U.money(pc.bizPaid) + '</b></div>' : '') +
-      '<div class="list-item"><span><b>Closing (carried to the next day)</b></span><b class="num">' + sg(pc.close) + '</b></div>';
+    function li(l, v, c) { return '<div class="list-item"><span>' + l + '</span><b class="num ' + (c || '') + '">' + v + '</b></div>'; }
+    return li('Cash when opened', pc.open == null ? '—' : sg(pc.open)) + li('Cash sales', U.money(pc.cashIn), 'pos') + li('Cash used', U.money(pc.cashUsed), 'neg') +
+      (pc.bizPaid ? li('Business costs paid in cash', U.money(pc.bizPaid), 'neg') : '') + (pc.deposits ? li('Deposited to M-Pesa', U.money(pc.deposits)) : '') +
+      (pc.withdrawals ? li('Withdrawn from M-Pesa', U.money(pc.withdrawals)) : '') + (pc.banked ? li('Cash taken to bank', U.money(pc.banked)) : '') +
+      li('<b>Cash when closed</b>', pc.close == null ? '—' : sg(pc.close));
   }
-  function sg(n) { return (n < 0 ? '−' : '') + U.money(Math.abs(n)); }
+  function sg(n) { return n == null ? '—' : (n < 0 ? '−' : '') + U.money(Math.abs(n)); }
 
   // Printable page for PDF.
   A.summaryPrintHTML = function () {
@@ -35,8 +35,8 @@
     h += '<h2>Totals</h2><table class="kv"><tr><td>Money in</td><td class="n">' + U.money2(sm.inn) + '</td></tr><tr><td>Money spent (incl. fees)</td><td class="n">' + U.money2(sm.spent) + '</td></tr>' +
       '<tr><td>Saved</td><td class="n">' + U.money2(sm.saved) + '</td></tr><tr><td>Left</td><td class="n">' + U.money2(sm.left) + '</td></tr></table>';
     var pc = A.periodCash();
-    if (pc) h += '<h2>Cash</h2><table class="kv"><tr><td>Brought forward</td><td class="n">' + U.money2(pc.open) + '</td></tr><tr><td>Cash in (cash sales)</td><td class="n">' + U.money2(pc.cashIn) + '</td></tr><tr><td>Cash used</td><td class="n">' + U.money2(pc.cashUsed) + '</td></tr>' +
-      (pc.bizPaid ? '<tr><td>Business costs paid in cash</td><td class="n">' + U.money2(pc.bizPaid) + '</td></tr>' : '') + '<tr><td>Closing (carried forward)</td><td class="n">' + U.money2(pc.close) + '</td></tr></table>';
+    if (pc) h += '<h2>Cash</h2><table class="kv"><tr><td>Cash when opened</td><td class="n">' + (pc.open == null ? '—' : U.money2(pc.open)) + '</td></tr><tr><td>Cash sales</td><td class="n">' + U.money2(pc.cashIn) + '</td></tr><tr><td>Cash used</td><td class="n">' + U.money2(pc.cashUsed) + '</td></tr>' +
+      (pc.bizPaid ? '<tr><td>Business costs paid in cash</td><td class="n">' + U.money2(pc.bizPaid) + '</td></tr>' : '') + (pc.deposits ? '<tr><td>Deposited to M-Pesa</td><td class="n">' + U.money2(pc.deposits) + '</td></tr>' : '') + (pc.withdrawals ? '<tr><td>Withdrawn from M-Pesa</td><td class="n">' + U.money2(pc.withdrawals) + '</td></tr>' : '') + (pc.banked ? '<tr><td>Cash taken to bank</td><td class="n">' + U.money2(pc.banked) + '</td></tr>' : '') + '<tr><td>Cash when closed</td><td class="n">' + (pc.close == null ? '—' : U.money2(pc.close)) + '</td></tr></table>';
     h += '<h2>Business and personal</h2><table><tr><th></th><th class="n">Business</th><th class="n">Personal</th><th class="n">Not tagged</th></tr>' +
       '<tr><td>Money in</td><td class="n">' + U.money2(sm.inBiz) + '</td><td class="n">' + U.money2(sm.inPer) + '</td><td class="n">' + U.money2(sm.inUn) + '</td></tr>' +
       '<tr><td>Spent</td><td class="n">' + U.money2(sm.outBiz) + '</td><td class="n">' + U.money2(sm.outPer) + '</td><td class="n">' + U.money2(sm.outUn) + '</td></tr></table>';
@@ -54,7 +54,7 @@
   function cmpCell(i, o) { return '<span class="pos">In ' + U.money(i) + '</span><br><span class="neg">Out ' + U.money(o) + '</span>'; }
   function madeCell(n) { return '<b class="' + (n < 0 ? 'neg' : n > 0 ? 'pos' : '') + '">' + (n < 0 ? '−' : n > 0 ? '+' : '') + U.money(Math.abs(n)) + '</b>'; }
   function cmpTable(d) {
-    var h = '<div class="tw"><table class="t cmp"><thead><tr><th>' + d.unit + '</th><th class="r">Business</th><th class="r">Personal</th><th class="r">Made / Lost</th><th class="r">Carried</th></tr></thead><tbody>';
+    var h = '<div class="tw"><table class="t cmp"><thead><tr><th>' + d.unit + '</th><th class="r">Business</th><th class="r">Personal</th><th class="r">Made / Lost</th><th class="r">Cash left</th></tr></thead><tbody>';
     d.rows.forEach(function (r) { h += '<tr><td>' + U.esc(r.short) + '</td><td class="r num">' + cmpCell(r.bIn, r.bOut) + '</td><td class="r num">' + cmpCell(r.pIn, r.pOut) + '</td><td class="r num">' + madeCell(r.made) + '</td><td class="r num">' + sg(r.close) + '</td></tr>'; });
     h += '</tbody><tfoot><tr><td>Total</td><td class="r num">' + cmpCell(d.total.bIn, d.total.bOut) + '</td><td class="r num">' + cmpCell(d.total.pIn, d.total.pOut) + '</td><td class="r num">' + madeCell(d.total.made) + '</td><td class="r num">' + sg(d.total.close) + '</td></tr></tfoot></table></div>';
     return h;
@@ -81,9 +81,9 @@
     var d = A.compare(st.sumMode);
     function c(i, o) { return 'In ' + U.money2(i) + '<br>Out ' + U.money2(o); }
     return '<h1>Chil comparison: ' + U.esc(A.shopLabel()) + '</h1><p class="sub">' + U.esc(d.title) + ' · made ' + U.fmtDayYear(U.todayISO()) + '</p>' +
-      '<table><tr><th>' + d.unit + '</th><th class="n">Business</th><th class="n">Personal</th><th class="n">Made / Lost</th><th class="n">Carried</th></tr>' +
+      '<table><tr><th>' + d.unit + '</th><th class="n">Business</th><th class="n">Personal</th><th class="n">Made / Lost</th><th class="n">Cash left</th></tr>' +
       d.rows.map(function (r) { return '<tr><td>' + U.esc(r.label) + '</td><td class="n">' + c(r.bIn, r.bOut) + '</td><td class="n">' + c(r.pIn, r.pOut) + '</td><td class="n">' + U.money2(r.made) + '</td></tr>'; }).join('') +
-      '<tr><th>Total</th><th class="n">' + c(d.total.bIn, d.total.bOut) + '</th><th class="n">' + c(d.total.pIn, d.total.pOut) + '</th><th class="n">' + U.money2(d.total.made) + '</th><th class="n">' + U.money2(d.total.close) + '</th></tr></table>' +
+      '<tr><th>Total</th><th class="n">' + c(d.total.bIn, d.total.bOut) + '</th><th class="n">' + c(d.total.pIn, d.total.pOut) + '</th><th class="n">' + U.money2(d.total.made) + '</th><th class="n">' + (d.total.close == null ? '—' : U.money2(d.total.close)) + '</th></tr></table>' +
       '<p class="sub">Made / Lost = all money in minus all money out, including savings and fees.</p>';
   };
 
@@ -99,14 +99,14 @@
       h += '<p class="hint" style="margin:8px 2px 12px"><b style="color:var(--ink)">' + U.esc(A.periodLabel()) + '</b> · ' + list.length + (list.length === 1 ? ' record' : ' records') + '</p>';
       if (!list.length) {
         var pce = A.periodCash();
-        if (pce) h += '<div class="card"><h3>Cash and carry-forward</h3>' + cashRowsHTML(pce) + '</div>';
+        if (pce) h += '<div class="card"><h3>Cash</h3>' + cashRowsHTML(pce) + '</div>';
         h += '<div class="empty"><b>No M-Pesa records for this ' + (st.sumMode === 'day' ? 'day' : st.sumMode) + '</b>Pick another date, or add your messages with the + button.</div>';
       } else {
         h += '<div class="tot four"><div><small>Money in</small><b class="pos num">' + U.money(sm.inn) + '</b></div><div><small>Spent</small><b class="neg num">' + U.money(sm.spent) + '</b></div>' +
           '<div><small>Saved</small><b class="num">' + U.money(sm.saved) + '</b></div><div><small>Left</small><b class="num ' + (sm.left < 0 ? 'neg' : 'pos') + '">' + U.money(sm.left) + '</b></div></div>';
         if (sm.untagged) h += '<div class="banner">' + sm.untagged + ' not tagged yet, so the split below is incomplete. <button data-act="tagged">Fix</button></div>';
         var pcs = A.periodCash();
-        if (pcs) h += '<div class="card"><h3>Cash and carry-forward</h3>' + cashRowsHTML(pcs) + '<p class="hint" style="margin:6px 0 0">Closing = brought forward + M-Pesa in + cash in − M-Pesa out − cash used. It becomes the next day\'s brought forward.</p></div>';
+        if (pcs) h += '<div class="card"><h3>Cash</h3>' + cashRowsHTML(pcs) + '<p class="hint" style="margin:6px 0 0">Cash sales = closing − opening + cash used + deposits to M-Pesa − withdrawals + cash taken to bank.</p></div>';
         h += '<div class="card"><h3>Business and personal</h3><div class="split2"><div><small>Money in: Business</small><b class="num">' + U.money(sm.inBiz) + '</b></div><div><small>Money in: Personal</small><b class="num">' + U.money(sm.inPer) + '</b></div>' +
           '<div><small>Spent: Business</small><b class="num">' + U.money(sm.outBiz) + '</b></div><div><small>Spent: Personal</small><b class="num">' + U.money(sm.outPer) + '</b></div></div>' +
           (sm.inUn || sm.outUn ? '<p class="hint">Not tagged: in ' + U.money(sm.inUn) + ', out ' + U.money(sm.outUn) + '</p>' : '') +

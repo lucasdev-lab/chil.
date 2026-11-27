@@ -4,7 +4,8 @@
   var st = A.st; st.hp = st.hp || { sec: 'guide', open: {}, quiz: null };
 
   var GUIDE = [
-    ['Money', 'Open Money and tap +. Paste your M-Pesa messages (copy them from your Messages app) and tap Read. Chil lists each one as money in or money out. For every item choose Business or Personal and a category tag (money out sent to Savings needs no tag). At the top, type the cash you received and the cash you used for the day. Yesterday\'s closing balance becomes today\'s brought-forward amount.'],
+    ['Money', 'Open Money and tap +. Paste your M-Pesa and bank messages (copy them from your Messages app) and tap Read. Chil lists each one as money in or money out. For every item choose Business or Personal and a category tag (money out sent to Savings needs no tag). At the top, type your cash when you open and your cash when you close. Chil works out the cash sales. Add any cash you spent with Cash used, and any cash you put in the bank with Cash taken to bank.'],
+    ['Money in bank (More)', 'Shows each bank account, its balance from your latest bank message, and the bank money in and out. Tap Cash taken to bank to record cash you deposited. That lowers your cash in hand and raises the bank. Tap Set to type a balance yourself.'],
     ['Summary', 'Shows how much came in, how much went out, and what is left, for a day, a month or a range. Use it to compare periods and see which categories took your money.'],
     ['Business', 'Shows sales, profit and a balance sheet built from your messages and your Business rows. Add stock bought and other business costs that M-Pesa does not show. Type your stock value yourself when you count it. Capital is the money you started with.'],
     ['Customers (More)', 'Everyone who paid you by M-Pesa, ranked by total spent. Tap a name to see payments. Print or save a report for one customer or all customers. Family and friends can be hidden.'],
@@ -18,7 +19,10 @@
     ['Where is my data kept?', 'Only on your phone. The seller cannot see it. That is why backups matter.'],
     ['How do I add M-Pesa messages?', 'Copy the messages in your Messages app, open Money, tap +, paste, tap Read, then Save.'],
     ['Why must I choose a category?', 'Categories power your Customers report, Expenditure report and Summary. Items without one show as "No category".'],
-    ['Why does my balance not match M-Pesa?', 'Chil adds cash in, subtracts cash used and business rows paid. Check that all messages are added and that cash for each day is typed. You can type a brought-forward amount to correct a day.'],
+    ['What happens when I deposit or withdraw cash at an agent?', 'A deposit moves your cash into M-Pesa. A withdrawal moves M-Pesa into cash. It is your own business money moving, so it is not a sale or an expense. Only the transaction cost counts as an expense.'],
+    ['How do cash sales work?', 'Cash sales = closing cash − opening cash + cash used + deposits to M-Pesa − withdrawals + cash taken to bank. Type your opening and closing cash every day.'],
+    ['A bank message was not read', 'Banks word messages differently. Chil marks bank records with "check". Compare the amount with your bank app. Send the message to the seller on WhatsApp so it can be added.'],
+    ['What if I move money from M-Pesa to my bank?', 'If the bank message shows the credit and the M-Pesa message shows the same amount sent, Chil matches them as your own money. Otherwise open the record and tick "This is my own money moving between my accounts".'],
     ['I got a new phone. What do I do?', 'On the old phone: Settings, Backup. Send the file to yourself. On the new phone: open Chil, Settings, Restore. Your activation code is tied to the old phone, so message the seller with your new Device ID.'],
     ['What is a Device ID?', 'A number that identifies this phone. The seller uses it to make your activation code, which works only on this phone.'],
     ['What happens when my subscription ends?', 'You get a warning before it ends and one day of grace. After that the app locks until you enter a new code. Your data is not deleted.'],
@@ -29,7 +33,7 @@
   ];
   var WRONG = [
     ['A message was not read', 'Make sure you pasted the full M-Pesa message. Send us a sample on WhatsApp if it keeps failing.'],
-    ['Numbers look wrong after adding messages', 'Check for duplicates (Chil skips repeated codes) and that each day\'s cash is entered. Use Search to find an item.'],
+    ['Numbers look wrong after adding messages', 'Check for duplicates (Chil skips repeated codes) and that your opening and closing cash are typed for each day. Use Search to find an item.'],
     ['The app says it is locked or the clock is wrong', 'Set your phone date and time to automatic, then reopen Chil.'],
     ['The app looks old after an update', 'Close it fully and open it again once while online. If needed, clear the site data in your browser, but make a backup first.'],
     ['I deleted something by mistake', 'Restore your last backup. This is why you should back up every week.'],
@@ -39,7 +43,7 @@
     ['Where is your data stored?', ['On the seller\'s server', 'Only on your phone', 'On M-Pesa'], 1],
     ['Creditors are people who...', ['owe you money', 'you owe money', 'work for you'], 0],
     ['What must you pick for each money-in or money-out item?', ['Business or Personal and a category', 'Only the date', 'Nothing'], 0],
-    ['What carries over to the next day?', ['Nothing', 'Yesterday\'s closing balance', 'Only M-Pesa fees'], 1],
+    ['Cash you give an agent to put on M-Pesa is...', ['A sale', 'An expense', 'Your own money moving'], 2],
     ['Before changing phones you should...', ['Delete the app', 'Make a backup', 'Turn off M-Pesa'], 1],
     ['A code made for one phone works on...', ['Any phone', 'Only that phone', 'Two phones'], 1]
   ];
