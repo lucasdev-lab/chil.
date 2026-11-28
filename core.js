@@ -199,20 +199,23 @@
   /* ---------- bank accounts: balance from the latest bank message, plus cash you took to the bank after it ---------- */
   A.bankAccounts = function (date) {
     var acc = {};
-    function get(l) { return acc[l] || (acc[l] = { label: l, auto: null, last: '', count: 0, add: [] }); }
+    function get(l) { return acc[l] || (acc[l] = { label: l, auto: null, last: '', count: 0, add: [], man: [] }); }
     S.D.tx.forEach(function (r) {
       if (!r.bank || (date && r.date > date)) return;
       var a = get(r.account); a.count++;
+      if (r.manual) { a.man.push(r); return; }
       if (r.balance != null && r.ts >= a.last) { a.auto = r.balance; a.last = r.ts; }
     });
     S.D.cash.banked.forEach(function (x) { if (!date || x.date <= date) get(x.account || 'Bank').add.push(x); });
+    (S.D.settings.banks || []).forEach(function (b) { get(b.name); });
     var out = Object.keys(acc).sort().map(function (k) {
       var a = acc[k], extra = U.sum(a.add.filter(function (x) { return !a.last || x.date > a.last.slice(0, 10); }), function (x) { return x.amount; });
+      a.man.forEach(function (r) { if (!a.last || r.ts > a.last) extra += r.dir === 'in' ? r.amount : r.dir === 'out' ? -r.amount : 0; });
       var typed = !date && S.D.cash.bankBal[k] != null ? S.D.cash.bankBal[k] : null;
       a.balance = typed != null ? typed : U.round2((a.auto || 0) + extra); a.typed = typed != null;
       return a;
     });
-    Object.keys(S.D.cash.bankBal).forEach(function (k) { if (!acc[k] && !date) out.push({ label: k, auto: null, last: '', count: 0, add: [], balance: S.D.cash.bankBal[k], typed: true }); });
+    Object.keys(S.D.cash.bankBal).forEach(function (k) { if (!acc[k] && !date) out.push({ label: k, auto: null, last: '', count: 0, add: [], man: [], balance: S.D.cash.bankBal[k], typed: true }); });
     out.total = U.round2(U.sum(out, function (a) { return a.balance; }));
     return out;
   };

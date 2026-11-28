@@ -5,7 +5,7 @@
   var DEFAULT_SETTINGS = {
     shopName: '', openAt: '', closeAt: '', days: [1, 2, 3, 4, 5, 6],
     openMsg: "Let's get to work. Make the day fruitful.",
-    simNames: { 1: 'SIM 1', 2: 'SIM 2' },
+    simNames: { 1: 'SIM 1', 2: 'SIM 2' }, simReasons: {}, banks: [],
     pin: null, autoLockMin: 2,
     recipients: [], selRecipient: null,
     reportOpts: { split: true, cat: true, work: true, debts: true },
@@ -33,6 +33,8 @@
     var out = JSON.parse(JSON.stringify(DEFAULT_SETTINGS));
     Object.keys(s || {}).forEach(function (k) { out[k] = s[k]; });
     out.simNames = Object.assign({}, DEFAULT_SETTINGS.simNames, (s && s.simNames) || {});
+    out.simReasons = Object.assign({}, (s && s.simReasons) || {});
+    out.banks = Array.isArray(s && s.banks) ? s.banks.filter(function (b) { return b && b.name; }) : [];
     out.reportOpts = Object.assign({}, DEFAULT_SETTINGS.reportOpts, (s && s.reportOpts) || {});
     return out;
   }

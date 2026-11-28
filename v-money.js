@@ -11,13 +11,46 @@
   }
   function visible() {
     return S.D.tx.filter(function (r) {
-      if (st.sim && r.sim !== st.sim) return false;
+      if (st.acct) { if (!(r.bank && r.account === st.acct)) return false; }
+      else if (st.sim && (r.bank || r.sim !== st.sim)) return false;
       if (st.month !== 'all' && U.monthKey(r.date) !== st.month) return false;
       if (st.onlyUntagged && !A.needsTag(r)) return false;
       return true;
     });
   }
   function simName(n) { return S.D.settings.simNames[n] || 'SIM ' + n; }
+  // Every place money arrives: SIM 1, SIM 2, extra SIMs, and bank accounts (the ones you added plus any seen in bank messages).
+  A.accounts = function () {
+    var s = S.D.settings, out = [], seen = {};
+    Object.keys(s.simNames).map(Number).sort(function (a, b) { return a - b; }).forEach(function (n) { out.push({ key: 'sim:' + n, kind: 'sim', n: n, name: simName(n), reason: s.simReasons[n] || '' }); });
+    s.banks.forEach(function (b) { seen[b.name] = 1; out.push({ key: 'bank:' + b.name, kind: 'bank', name: b.name, reason: b.reason || '' }); });
+    S.D.tx.forEach(function (r) { if (r.bank && !seen[r.account]) { seen[r.account] = 1; out.push({ key: 'bank:' + r.account, kind: 'bank', name: r.account, reason: '' }); } });
+    return out;
+  };
+  A.addAccountSheet = function (done) {
+    var kind = 'bank';
+    function draw(keep) {
+      A.sheet('<h2>Add an account</h2><p class="mute">Add another phone line or a bank account that receives money for your business. You can say what the money is for, for example Offering, Tithe or Shop sales. Money received there will be tagged with it automatically.</p>' +
+        '<label class="f">What is it?</label><div class="chips"><button class="chip' + (kind === 'bank' ? ' on' : '') + '" data-k="bank">Bank account</button><button class="chip' + (kind === 'sim' ? ' on' : '') + '" data-k="sim">Phone line (SIM)</button></div>' +
+        '<label class="f">Name</label><input class="in" id="ac-name" maxlength="30" placeholder="' + (kind === 'bank' ? 'e.g. KCB shop account' : 'e.g. SIM 3') + '">' +
+        '<label class="f">What is the money for? (optional)</label><input class="in" id="ac-reason" maxlength="30" placeholder="e.g. Offering, Tithe, Shop sales">' +
+        '<div class="err" id="ac-err"></div><button class="btn green block" id="ac-save">Add account</button>', function (b) {
+        if (keep) { U.$('#ac-name', b).value = keep.name; U.$('#ac-reason', b).value = keep.reason; }
+        U.$$('[data-k]', b).forEach(function (x) { x.onclick = function () { var k = { name: U.$('#ac-name', b).value, reason: U.$('#ac-reason', b).value }; kind = x.getAttribute('data-k'); draw(k); }; });
+        U.$('#ac-save', b).onclick = function () {
+          var name = U.$('#ac-name', b).value.trim(), reason = U.$('#ac-reason', b).value.trim(), err = U.$('#ac-err', b), s = S.D.settings;
+          if (!name) { err.textContent = 'Type a name for the account.'; return; }
+          if (A.accounts().some(function (a) { return a.name.toLowerCase() === name.toLowerCase(); })) { err.textContent = 'You already have an account with that name.'; return; }
+          if (reason) A.rememberTag(reason);
+          var key;
+          if (kind === 'sim') { var n = Math.max.apply(null, Object.keys(s.simNames).map(Number)) + 1; s.simNames[n] = name; if (reason) s.simReasons[n] = reason; key = 'sim:' + n; }
+          else { s.banks.push({ name: name, reason: reason }); key = 'bank:' + name; }
+          S.commit('settings'); A.closeSheet(); U.toast('Account added'); if (done) done(key); else A.refresh();
+        };
+      });
+    }
+    draw();
+  };
 
   function catCell(r) {
     if (r.dir === 'own') return '<span class="pill">Own money</span>';
@@ -124,9 +157,11 @@
       if (un) h += '<div class="banner">' + un + (un === 1 ? ' record needs' : ' records need') + ' a category. <button data-act="untag">' + (st.onlyUntagged ? 'Show all' : 'Show them') + '</button></div>';
       h += '<div class="row" style="margin-bottom:10px"><select class="sel grow" id="m-month"><option value="all">All time</option>' +
         ms.map(function (k) { return '<option value="' + k + '"' + (k === st.month ? ' selected' : '') + '>' + U.monthLabel(k) + '</option>'; }).join('') + '</select></div>';
-      h += '<div class="chips" style="margin-bottom:12px"><button class="chip' + (!st.sim ? ' on' : '') + '" data-sim="0">Both SIMs</button>' +
-        '<button class="chip' + (st.sim === 1 ? ' on' : '') + '" data-sim="1">' + U.esc(simName(1)) + '</button>' +
-        '<button class="chip' + (st.sim === 2 ? ' on' : '') + '" data-sim="2">' + U.esc(simName(2)) + '</button></div>';
+      var cur = st.acct ? 'bank:' + st.acct : st.sim ? 'sim:' + st.sim : '';
+      h += '<div class="chips" style="margin-bottom:12px"><button class="chip' + (!cur ? ' on' : '') + '" data-acc="">All</button>' +
+        A.accounts().map(function (x) { return '<button class="chip' + (cur === x.key ? ' on' : '') + '" data-acc="' + U.esc(x.key) + '">' + U.esc(x.name) + '</button>'; }).join('') +
+        '<button class="chip" id="acc-plus" aria-label="Add an account" style="font-weight:800">+</button></div>' +
+        (st.acct ? '<div class="row" style="margin-bottom:10px"><button class="btn grow" id="acc-recv">+ Money received in ' + U.esc(st.acct) + '</button></div>' : '');
       h += '<div class="tot"><div><small>Money in</small><b class="pos num">' + U.money(sm.inn) + '</b></div><div><small>Money out</small><b class="neg num">' + U.money(sm.spent + sm.saved) + '</b></div>' +
         '<div><small>Left</small><b class="num ' + (sm.left < 0 ? 'neg' : 'pos') + '">' + U.money(sm.left) + '</b></div></div>';
       if (!list.length) return h + '<div class="empty"><b>Nothing here</b>No records match this view.</div>';
@@ -144,7 +179,7 @@
             : '<td class="cin"></td><td class="cout num mute" style="font-weight:600">' + (r.fee ? U.money2(r.fee) : '') + '</td>';
           h += '<tr class="tx" data-code="' + r.code + '"><td>' + U.fmtDay(r.date) + '<br><small class="mute">' + U.time12(r.time) + '</small></td>' +
             '<td class="name">' + U.esc(r.name) + (r.check ? ' <span class="pill warn">check</span>' : '') + '</td>' + amt +
-            '<td>' + catCell(r) + '</td><td>' + U.esc(r.account) + (S.D.tx.some(function (x) { return x.sim === 2; }) ? ' <small class="mute">' + U.esc(simName(r.sim)) + '</small>' : '') + '</td>' +
+            '<td>' + catCell(r) + '</td><td>' + U.esc(r.account) + (!r.bank && S.D.tx.some(function (x) { return x.sim >= 2; }) ? ' <small class="mute">' + U.esc(simName(r.sim)) + '</small>' : '') + '</td>' +
             '<td class="code">' + r.code + '</td></tr>';
         });
       });
@@ -163,7 +198,9 @@
       });
       var m = U.$('#m-month', root);
       if (m) m.onchange = function () { st.month = m.value; A.refresh(); };
-      U.$$('[data-sim]', root).forEach(function (b) { b.onclick = function () { st.sim = +b.getAttribute('data-sim'); A.refresh(); }; });
+      U.$$('[data-acc]', root).forEach(function (b) { b.onclick = function () { var k = b.getAttribute('data-acc'); st.sim = 0; st.acct = ''; if (k.indexOf('sim:') === 0) st.sim = +k.slice(4); else if (k.indexOf('bank:') === 0) st.acct = k.slice(5); A.refresh(); }; });
+      var rc = U.$('#acc-recv', root); if (rc) rc.onclick = function () { A.bankEntrySheet(st.acct); };
+      var pl = U.$('#acc-plus', root); if (pl) pl.onclick = function () { A.addAccountSheet(function (k) { st.sim = 0; st.acct = ''; if (k.indexOf('sim:') === 0) st.sim = +k.slice(4); else st.acct = k.slice(5); A.refresh(); }); };
       U.$$('[data-act]', root).forEach(function (b) {
         b.onclick = function () {
           var a = b.getAttribute('data-act');
@@ -208,7 +245,7 @@
         '<input class="in" id="tg-custom" style="margin-top:10px" maxlength="30" placeholder="Or type your own tag" value="' + U.esc(sel.custom) + '">' +
         '<label class="check-row"><input type="checkbox" id="tg-rule"> Always tag ' + U.esc(r.name) + ' the same way</label>' +
         '<label class="check-row"><input type="checkbox" id="tg-own"> This is my own money moving between my accounts' + (r.kind === 'bank-cash-deposit' ? ' (my cash taken to the bank)' : '') + ', not ' + (r.dir === 'in' ? 'a sale' : 'spending') + '</label>' +
-        '<div class="err" id="tg-err"></div><button class="btn green block" id="tg-save">Save</button>';
+        '<div class="err" id="tg-err"></div><button class="btn green block" id="tg-save">Save</button>' + (r.manual ? '<button class="btn ghost block" id="tg-del" style="margin-top:8px">Delete this entry</button>' : '');
       return h;
     }
     function draw() {
@@ -217,6 +254,7 @@
         U.$$('[data-t]', b).forEach(function (x) { x.onclick = function () { sel.custom = ''; sel.tag = x.getAttribute('data-t'); draw(); keep(b); }; });
         U.$('#tg-custom', b).oninput = function () { sel.custom = this.value; };
         U.$('#tg-save', b).onclick = function () { save(b); };
+        var dl = U.$('#tg-del', b); if (dl) dl.onclick = function () { S.D.tx = S.D.tx.filter(function (x) { return x.code !== r.code; }); S.commit('tx'); A.closeSheet(); A.refresh(); U.toast('Deleted'); };
       });
     }
     var ruleOn = false;
@@ -247,11 +285,15 @@
 
   /* ---------- add (paste) ---------- */
   A.V.add = {
-    open: function () {
-      var sim = 1, res = null;
+    reopen: function (text, key) { st.acct = key.indexOf('bank:') === 0 ? key.slice(5) : ''; st.sim = key.indexOf('sim:') === 0 ? +key.slice(4) : 0; A.V.add.open(text); },
+    open: function (text0) {
+      var res = null, acct = st.acct ? 'bank:' + st.acct : 'sim:' + (st.sim || 1);
+      function accObj() { return A.accounts().filter(function (x) { return x.key === acct; })[0] || A.accounts()[0]; }
+      function accReason() { var a = accObj(); return a ? a.reason : ''; }
       function draw(text) {
-        var h = '<h2>Add M-Pesa messages</h2><p class="mute">Copy the messages from your SMS app, then paste them here. Pasting the same message twice is safe.</p>' +
-          '<p class="hint" style="margin:0 0 8px">Bank messages are recognised automatically.</p><label class="f">Which SIM received the M-Pesa messages?</label><div class="chips"><button class="chip' + (sim === 1 ? ' on' : '') + '" data-s="1">' + U.esc(simName(1)) + '</button><button class="chip' + (sim === 2 ? ' on' : '') + '" data-s="2">' + U.esc(simName(2)) + '</button></div>' +
+        var h = '<h2>Add M-Pesa and bank messages</h2><p class="mute">Copy the messages from your SMS app, then paste them here. Pasting the same message twice is safe.</p>' +
+          '<label class="f">Which account received these messages?</label><div class="chips">' + A.accounts().map(function (x) { return '<button class="chip' + (acct === x.key ? ' on' : '') + '" data-s="' + U.esc(x.key) + '">' + U.esc(x.name) + '</button>'; }).join('') + '<button class="chip" id="ad-plus" style="font-weight:800" aria-label="Add an account">+</button></div>' +
+          '<p class="hint" style="margin:6px 0 8px">Pick the SIM or the bank account. Bank messages are also recognised by themselves.' + (accReason() ? ' Money received here is tagged "' + U.esc(accReason()) + '".' : '') + '</p>' +
           '<label class="f">Paste messages</label><textarea class="in" id="ad-text" placeholder="Paste here...">' + U.esc(text || '') + '</textarea><div class="err" id="ad-err"></div>';
         if (res) {
           var ms = P.mergeNew(S.D.tx, res.records);
@@ -274,14 +316,19 @@
           h += '<button class="btn block" id="ad-read">Read messages</button>';
         }
         A.sheet(h, function (b) {
-          U.$$('[data-s]', b).forEach(function (x) { x.onclick = function () { var t = U.$('#ad-text', b).value; sim = +x.getAttribute('data-s'); res = null; draw(t); }; });
+          U.$$('[data-s]', b).forEach(function (x) { x.onclick = function () { var t = U.$('#ad-text', b).value; acct = x.getAttribute('data-s'); res = null; draw(t); }; });
+          var plus = U.$('#ad-plus', b); if (plus) plus.onclick = function () { var t = U.$('#ad-text', b).value; A.addAccountSheet(function (k) { acct = k; res = null; A.V.add.reopen(t, k); }); };
           var ta = U.$('#ad-text', b);
           ta.oninput = function () { if (res) { res = null; var rd = U.$('#ad-save', b); draw(ta.value); } };
           var rd = U.$('#ad-read', b);
           if (rd) rd.onclick = function () {
             var t = ta.value;
             if (!t.trim()) { U.$('#ad-err', b).textContent = 'Paste your M-Pesa messages first.'; return; }
-            res = P.parseMessages(t, sim);
+            var ao = accObj(); res = P.parseMessages(t, ao.kind === 'sim' ? ao.n : 1);
+            res.records.forEach(function (r) {
+              if (r.bank && ao.kind === 'bank') r.account = ao.name;
+              if (ao.reason && r.dir === 'in' && !r.tag) { r.tag = ao.reason; delete r.auto; }
+            });
             if (!res.records.length && !res.skipped.length && !res.unrecognised.length) { res = null; U.$('#ad-err', b).textContent = 'No messages found in that text.'; return; }
             draw(t);
           };

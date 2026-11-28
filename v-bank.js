@@ -32,6 +32,47 @@
     draw();
   };
 
+  // Money received (or paid out) in a business bank account, typed by hand, for banks that send no SMS.
+  A.bankEntrySheet = function (acct, dir0) {
+    var accs = A.bankAccounts().map(function (a) { return a.label; }), sel = { acct: acct || accs[0] || '', dir: dir0 || 'in', bucket: dir0 === 'out' ? 'personal' : 'business', tag: '' };
+    function reason() { var a = (S.D.settings.banks || []).filter(function (b) { return b.name === sel.acct; })[0]; return a && a.reason ? a.reason : ''; }
+    function draw(keep) {
+      var tags = A.allTags(sel.dir), rs = reason(), tg = sel.tag || (sel.dir === 'in' ? rs : '');
+      A.sheet('<h2>' + (sel.dir === 'in' ? 'Money received in the bank' : 'Money paid from the bank') + '</h2>' +
+        '<div class="chips"><button class="chip' + (sel.dir === 'in' ? ' on' : '') + '" data-d="in">Money received</button><button class="chip' + (sel.dir === 'out' ? ' on' : '') + '" data-d="out">Money paid out</button></div>' +
+        '<label class="f">Bank account</label><div class="chips">' + accs.map(function (a) { return '<button class="chip' + (sel.acct === a ? ' on' : '') + '" data-a="' + U.esc(a) + '">' + U.esc(a) + '</button>'; }).join('') + '</div>' +
+        '<input class="in" id="be-new" style="margin-top:8px" maxlength="30" placeholder="' + (accs.length ? 'Or type another account name' : 'Bank account name, e.g. KCB shop account') + '">' +
+        '<label class="f">Amount (KSh)</label><input class="in" id="be-amt" inputmode="decimal" placeholder="0">' +
+        '<label class="f">' + (sel.dir === 'in' ? 'Received from' : 'Paid to') + '</label><input class="in" id="be-name" maxlength="40" placeholder="Name or reason">' +
+        '<label class="f">Date</label><input class="in" type="date" id="be-date" value="' + U.todayISO() + '">' +
+        '<label class="f">Business or personal?</label><div class="chips"><button class="chip biz' + (sel.bucket === 'business' ? ' on' : '') + '" data-b="business">Business</button><button class="chip per' + (sel.bucket === 'personal' ? ' on' : '') + '" data-b="personal">Personal</button></div>' +
+        '<label class="f">Category</label><div class="chips">' + tags.map(function (t) { return '<button class="chip' + (tg === t ? ' on' : '') + '" data-t="' + U.esc(t) + '">' + U.esc(t) + '</button>'; }).join('') + '</div>' +
+        '<input class="in" id="be-custom" style="margin-top:8px" maxlength="30" placeholder="Or type your own tag">' +
+        '<div class="err" id="be-err"></div><button class="btn green block" id="be-save">Save</button>', function (b) {
+        if (keep) { ['amt', 'name', 'date', 'new', 'custom'].forEach(function (k) { U.$('#be-' + k, b).value = keep[k]; }); }
+        function snap() { var o = {}; ['amt', 'name', 'date', 'new', 'custom'].forEach(function (k) { o[k] = U.$('#be-' + k, b).value; }); return o; }
+        U.$$('[data-d]', b).forEach(function (x) { x.onclick = function () { var k = snap(); sel.dir = x.getAttribute('data-d'); sel.bucket = sel.dir === 'in' ? 'business' : 'personal'; sel.tag = ''; draw(k); }; });
+        U.$$('[data-a]', b).forEach(function (x) { x.onclick = function () { var k = snap(); k.new = ''; sel.acct = x.getAttribute('data-a'); draw(k); }; });
+        U.$$('[data-b]', b).forEach(function (x) { x.onclick = function () { var k = snap(); sel.bucket = x.getAttribute('data-b'); draw(k); }; });
+        U.$$('[data-t]', b).forEach(function (x) { x.onclick = function () { var k = snap(); k.custom = ''; sel.tag = x.getAttribute('data-t'); draw(k); }; });
+        U.$('#be-save', b).onclick = function () {
+          var k = snap(), v = C.Calc.evalExpr(k.amt.trim()), acc = k.new.trim() || sel.acct, tag = k.custom.trim() || sel.tag || (sel.dir === 'in' ? reason() : ''), err = U.$('#be-err', b);
+          if (!acc) { err.textContent = 'Choose or type the bank account.'; return; }
+          if (v == null || v <= 0) { err.textContent = 'Enter the amount, for example 2500.'; return; }
+          if (!k.date) { err.textContent = 'Pick the date.'; return; }
+          if (!tag) { err.textContent = 'Choose a category or type your own.'; return; }
+          if (k.custom.trim()) A.rememberTag(k.custom.trim());
+          if (!(S.D.settings.banks || []).some(function (x) { return x.name === acc; }) && !S.D.tx.some(function (x) { return x.bank && x.account === acc; })) S.D.settings.banks.push({ name: acc, reason: '' });
+          var now = new Date(), hh = ('0' + now.getHours()).slice(-2) + ':' + ('0' + now.getMinutes()).slice(-2);
+          S.D.tx.push({ code: 'BM' + U.uid(), dir: sel.dir, amount: U.round2(v), fee: 0, name: k.name.trim() || (sel.dir === 'in' ? 'Money received' : 'Money paid'), account: acc, bank: true, balance: null, ref: '', bucket: sel.bucket, tag: tag,
+            date: k.date, time: hh, ts: k.date + 'T' + hh, kind: 'manual', manual: true, sim: 0 });
+          S.commit('tx', 'settings'); A.closeSheet(); U.toast('Saved'); A.refresh();
+        };
+      });
+    }
+    draw();
+  };
+
   function txs() { return S.D.tx.filter(function (r) { return r.bank && (!st.bkAcc || r.account === st.bkAcc); }).sort(function (a, b) { return a.ts < b.ts ? 1 : -1; }); }
 
   A.V.bank = {
@@ -39,7 +80,7 @@
       var accs = A.bankAccounts(), list = txs();
       var h = '<h1 class="page-title">Money in bank</h1>';
       h += '<div class="tot"><div><small>Total in bank</small><b class="num pos">' + U.money(accs.total) + '</b></div><div><small>Accounts</small><b class="num">' + accs.length + '</b></div></div>';
-      h += '<div class="row" style="margin-bottom:10px"><button class="btn grow" id="bk-cash">Cash taken to bank</button><button class="btn ghost grow" id="bk-add">Add bank messages</button></div>';
+      h += '<div class="row" style="margin-bottom:10px"><button class="btn grow" id="bk-in">+ Money received</button><button class="btn ghost grow" id="bk-cash">Cash taken to bank</button></div><div class="row" style="margin-bottom:10px"><button class="btn ghost grow" id="bk-add">Add bank messages</button></div>';
       if (!accs.length) return h + '<div class="empty"><b>No bank money yet</b>Paste your bank SMS with the + button. Chil reads credits, debits, ATM, card and charges. You can also add cash you took to the bank.</div>';
       h += '<div class="card"><h3>Accounts</h3>' + accs.map(function (a) {
         return '<div class="list-item"><div class="grow"><b>' + U.esc(a.label) + '</b><small>' + (a.typed ? 'typed balance' : a.last ? 'from message ' + U.fmtDayYear(a.last.slice(0, 10)) : 'from cash taken to bank') + ' · ' + a.count + (a.count === 1 ? ' message' : ' messages') + '</small></div><b class="num">' + U.money2(a.balance) + '</b><button class="btn small ghost" data-bal="' + U.esc(a.label) + '">Set</button></div>';
@@ -54,6 +95,7 @@
       return h + '<p class="hint center">Bank messages are worded differently by each bank, so each is marked "check" until you confirm the amounts. Tap one to tag it.</p>';
     },
     mount: function (root) {
+      var bi = U.$('#bk-in', root); if (bi) bi.onclick = function () { A.bankEntrySheet(st.bkAcc); };
       var cb = U.$('#bk-cash', root); if (cb) cb.onclick = function () { A.cashBankSheet(U.todayISO()); };
       var ad = U.$('#bk-add', root); if (ad) ad.onclick = function () { A.V.add.open(); };
       U.$$('[data-f]', root).forEach(function (b) { b.onclick = function () { st.bkAcc = b.getAttribute('data-f'); A.refresh(); }; });
